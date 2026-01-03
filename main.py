@@ -1,6 +1,7 @@
 import numpy as np
 import pyvista as pv
 import trimesh
+import threading
 
 from time import sleep
 from mesh_to_sdf import mesh_to_sdf
@@ -88,66 +89,45 @@ for i, t in enumerate(np.linspace(0, 1, num_frames)):
 
 print(f"\nDisplaying {len(morph_frames)} morph frames...")
 
-# Configure plotter
-plotter = pv.Plotter(window_size=[800, 600])
-plotter.ren_win.SetWindowName("Mesh Morphing Animation")
+plotter = pv.Plotter()
 
 # Add initial mesh
 actor = plotter.add_mesh(morph_frames[0], color='lightblue', 
                          show_edges=False, smooth_shading=True)
 
-# Set up camera
+# Camera setup
 plotter.reset_camera()
 plotter.camera_position = 'iso'
 
-# Open the render window (non-blocking)
-plotter.show(interactive_update=True, auto_close=False)
+# State tracking
+state = {'frame': 0, 'loop': 0, 'max_loops': 10}
 
-# Force window to front on Windows
-try:
-    import ctypes
-    hwnd = plotter.ren_win.GetGenericWindowId()
-    ctypes.windll.user32.SetForegroundWindow(hwnd)
-except:
-    pass
-
-# Animation loop - runs until window is closed
-print("Animation running... Close the window to stop.")
-n_loops = 0
-max_loops = 10  # Set to None for infinite looping
-
-while True:
-    for i, frame in enumerate(morph_frames):
-        # Check if window was closed
-        if not plotter.ren_win.GetNeverRendered() and not plotter.ren_win.IsCurrent():
-            break
-            
-        try:
-            # Update mesh data directly
-            actor.GetMapper().SetInputData(frame)
-            
-            # Update window title with frame info
-            plotter.ren_win.SetWindowName(f"Morphing: Frame {i+1}/{len(morph_frames)} (Loop {n_loops+1})")
-            
-            # Render and process events
-            plotter.update()
-            sleep(0.3)  # Delay between frames (seconds)
-            
-        except Exception:
-            break
+def update_scene(obj, event):
+    """Timer callback to update mesh each frame"""
+    # Update mesh geometry
+    frame = morph_frames[state['frame']]
+    actor.GetMapper().SetInputData(frame)
     
-    n_loops += 1
-    if max_loops is not None and n_loops >= max_loops:
-        break
+    # Move to next frame
+    state['frame'] = (state['frame'] + 1) % len(morph_frames)
+    if state['frame'] == 0:
+        state['loop'] += 1
     
-    # Check if window still exists
-    try:
-        plotter.update()
-    except Exception:
-        break
+    # Force render update
+    plotter.render()
+
+# Set up interactive window first
+plotter.show(interactive=True, auto_close=False, interactive_update=True)
+
+# Get the underlying VTK interactor and create timer
+iren = plotter.iren.interactor
+timer_id = iren.CreateRepeatingTimer(300)
+iren.AddObserver('TimerEvent', update_scene)
+
+print("Animation running. You can rotate/zoom/pan with mouse. Close window to exit.")
+
+# Start the interactor event loop - this allows mouse interaction
+iren.Start()
 
 print("Morphing animation complete!")
-try:
-    plotter.close()
-except:
-    pass
+plotter.close()
