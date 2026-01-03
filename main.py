@@ -1,6 +1,8 @@
 import numpy as np
 import pyvista as pv
 import trimesh
+
+from time import sleep
 from mesh_to_sdf import mesh_to_sdf
 from skimage import measure
 
@@ -23,7 +25,7 @@ min_bounds = np.minimum(bounds_a[::2], bounds_b[::2]) - 0.1  # Add padding
 max_bounds = np.maximum(bounds_a[1::2], bounds_b[1::2]) + 0.1
 
 # (higher = more detail, but slower)
-resolution = 64 
+resolution = 32
 
 # Create 3D grid coordinates
 x = np.linspace(min_bounds[0], max_bounds[0], resolution)
@@ -85,14 +87,67 @@ for i, t in enumerate(np.linspace(0, 1, num_frames)):
         print(f"  Warning: Could not generate mesh for frame {i}: {e}")
 
 print(f"\nDisplaying {len(morph_frames)} morph frames...")
-print("Close each window to see the next frame...")
 
-for i, frame in enumerate(morph_frames):
-    plotter = pv.Plotter()
-    plotter.add_text(f"Mesh Morphing using SDFs - Frame {i+1}/{len(morph_frames)}", 
-                     font_size=12, position='upper_edge')
-    plotter.add_mesh(frame, color='lightblue', show_edges=False, smooth_shading=True)
-    plotter.show()  # This will block until you close the window
+# Configure plotter
+plotter = pv.Plotter(window_size=[800, 600])
+plotter.ren_win.SetWindowName("Mesh Morphing Animation")
+
+# Add initial mesh
+actor = plotter.add_mesh(morph_frames[0], color='lightblue', 
+                         show_edges=False, smooth_shading=True)
+
+# Set up camera
+plotter.reset_camera()
+plotter.camera_position = 'iso'
+
+# Open the render window (non-blocking)
+plotter.show(interactive_update=True, auto_close=False)
+
+# Force window to front on Windows
+try:
+    import ctypes
+    hwnd = plotter.ren_win.GetGenericWindowId()
+    ctypes.windll.user32.SetForegroundWindow(hwnd)
+except:
+    pass
+
+# Animation loop - runs until window is closed
+print("Animation running... Close the window to stop.")
+n_loops = 0
+max_loops = 10  # Set to None for infinite looping
+
+while True:
+    for i, frame in enumerate(morph_frames):
+        # Check if window was closed
+        if not plotter.ren_win.GetNeverRendered() and not plotter.ren_win.IsCurrent():
+            break
+            
+        try:
+            # Update mesh data directly
+            actor.GetMapper().SetInputData(frame)
+            
+            # Update window title with frame info
+            plotter.ren_win.SetWindowName(f"Morphing: Frame {i+1}/{len(morph_frames)} (Loop {n_loops+1})")
+            
+            # Render and process events
+            plotter.update()
+            sleep(0.3)  # Delay between frames (seconds)
+            
+        except Exception:
+            break
+    
+    n_loops += 1
+    if max_loops is not None and n_loops >= max_loops:
+        break
+    
+    # Check if window still exists
+    try:
+        plotter.update()
+    except Exception:
+        break
 
 print("Morphing animation complete!")
-
+try:
+    plotter.close()
+except:
+    pass
