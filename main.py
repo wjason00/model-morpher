@@ -5,13 +5,19 @@ from time import time
 from mesh_to_sdf import mesh_to_sdf
 from skimage import measure
 
-print("Loading and simplifying meshes...")
+print("Loading and validating meshes...")
 mesh_a = pv.read('test_models/hippocampus.stl')
 mesh_b = pv.read('test_models/brain.stl')
 
-# Use n_cells instead of n_faces
 print(f"Original Mesh A: {mesh_a.n_cells} faces")
 print(f"Original Mesh B: {mesh_b.n_cells} faces")
+
+# Clean meshes before processing
+print("\nCleaning meshes...")
+mesh_a = mesh_a.clean()
+mesh_a = mesh_a.fill_holes(hole_size=1000)
+mesh_b = mesh_b.clean()
+mesh_b = mesh_b.fill_holes(hole_size=1000)
 
 TARGET_FACES = 10000
 
@@ -35,14 +41,24 @@ mesh_b_tri = trimesh.Trimesh(
     faces=mesh_b.faces.reshape(-1, 4)[:, 1:4]
 )
 
+# Repair meshes in trimesh
+print("Repairing mesh geometry...")
+mesh_a_tri.fill_holes()
+mesh_a_tri.fix_normals()
+mesh_b_tri.fill_holes()
+mesh_b_tri.fix_normals()
+
+print(f"Mesh A watertight: {mesh_a_tri.is_watertight}")
+print(f"Mesh B watertight: {mesh_b_tri.is_watertight}")
+
 # Generate a bounding box capable of storing both meshes for SDF calculations
 bounds_a = mesh_a.bounds
 bounds_b = mesh_b.bounds
-min_bounds = np.minimum(bounds_a[0::2], bounds_b[0::2]) - 0.05  # Add padding
-max_bounds = np.maximum(bounds_a[1::2], bounds_b[1::2]) + 0.05
+min_bounds = np.minimum(bounds_a[0::2], bounds_b[0::2]) - 0.1  # Increased padding
+max_bounds = np.maximum(bounds_a[1::2], bounds_b[1::2]) + 0.1
 
-# (higher = more detail, but slower)
-resolution = 64
+# Increase resolution for better quality (especially important for hippocampus)
+resolution = 80  # Increased from 64
 
 # Create 3D grid coordinates
 x = np.linspace(min_bounds[0], max_bounds[0], resolution)
@@ -64,25 +80,27 @@ print(f"Total query points: {len(query_points)}")
 print("\nComputing SDFs...")
 t0 = time()
 
-print("Computing SDF for mesh A...")
+print("Computing SDF for mesh A (hippocampus)...")
 sdf_a = mesh_to_sdf(
     mesh_a_tri,
     query_points,
-    surface_point_method='sample',  # faster than 'scan'
-    sign_method='normal',
-    sample_point_count=10000
+    surface_point_method='scan',  # Changed back to 'scan' for accuracy
+    sign_method='depth',  # KEY FIX: Changed from 'normal' to 'depth'
+    scan_count=100,  # Higher quality scan
+    scan_resolution=400
 )
 sdf_a = sdf_a.reshape(resolution, resolution, resolution)
 t1 = time()
 print(f"  Mesh A done in {t1 - t0:.1f}s")
 
-print("Computing SDF for mesh B...")
+print("Computing SDF for mesh B (brain)...")
 sdf_b = mesh_to_sdf(
     mesh_b_tri,
     query_points,
-    surface_point_method='sample',
-    sign_method='normal',
-    sample_point_count=10000
+    surface_point_method='scan',
+    sign_method='depth',  # KEY FIX: Changed from 'normal' to 'depth'
+    scan_count=100,
+    scan_resolution=400
 )
 sdf_b = sdf_b.reshape(resolution, resolution, resolution)
 t2 = time()
@@ -175,4 +193,3 @@ viewer = ScrollViewer(morph_frames)
 viewer.show()
 
 print("Morphing animation complete!")
-
