@@ -3,3 +3,5 @@ trimesh
 mesh_to_sdf
 scikit-image
 pyvista
+torch
+torchcumesh2sdf
