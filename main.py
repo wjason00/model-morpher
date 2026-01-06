@@ -244,7 +244,7 @@ class ScrollViewer:
             show_edges=False  # Cleaner look
         )
         self.text = self.plotter.add_text(
-            f"Frame 1/{len(frames)}",
+            f"Controls | Left Click to Pan | Mouse Wheel to Morph | Right Click to Zoom | Q to Quit",
             position='upper_left',
             font_size=12
         )
@@ -270,16 +270,6 @@ class ScrollViewer:
             f"Frame {self.idx+1}/{len(self.frames)} ({progress:.0f}%)"
         )
         self.plotter.render()
-
-
-    def show(self):
-        print("Controls:")
-        print("  Mouse wheel: morph through frames")
-        print("  Left drag: rotate | Middle drag: pan | Right drag: zoom")
-        print("  Q: quit")
-        self.plotter.show()
-
-
 
 viewer = ScrollViewer(morph_frames)
 viewer.show()
