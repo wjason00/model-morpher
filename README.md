@@ -2,6 +2,8 @@
 
 This repo holds a quick Python-only prototype for a neuroscience timeline project later on: generating smooth morphs between two meshes (e.g., hippocampus → whole brain) before any JavaScript deployment or additional quality-of-life tooling is added.
 
+![Recording 2026-01-06 at 18 12 31](https://github.com/user-attachments/assets/50d7a3e8-b733-4518-be16-d062bc56182c)
+
 ## What it does
 
 - Cleans and decimates two STL meshes utilising PyVista decimate function.
