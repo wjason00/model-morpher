@@ -271,4 +271,11 @@ class ScrollViewer:
         )
         self.plotter.render()
 
+    def show(self):
+        self.plotter.show()
+
 viewer = ScrollViewer(morph_frames)
+viewer.show()
+
+
+print("Morphing animation complete!")
