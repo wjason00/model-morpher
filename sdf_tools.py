@@ -4,6 +4,8 @@ import pyvista as pv
 from mesh_to_sdf import mesh_to_sdf
 from skimage import measure
 from time import time
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
+import multiprocessing
 
 
 def compute_sdf(mesh_tri, query_points, resolution):
@@ -26,6 +28,17 @@ def compute_sdf(mesh_tri, query_points, resolution):
 
     # Reshape to a 3D grid from 1D array (NumPy array reshaping)
     return sdf.reshape(resolution, resolution, resolution)
+
+
+def compute_sdf_worker(args):
+    """
+    Worker function for parallel SDF computation. Unpacks arguments and calls compute_sdf.
+    
+    :param args: Tuple of (mesh_tri, query_points, resolution)
+    :return: The computed SDF reshaped to 3D grid
+    """
+    mesh_tri, query_points, resolution = args
+    return compute_sdf(mesh_tri, query_points, resolution)
 
 
 def create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, frames=20):
@@ -132,21 +145,30 @@ def morph_meshes(trimesh_a, trimesh_b, resolution=64, num_frames=20):
 """)
 
     # Computing SDF values for both meshes at the query points and then reconverting to 3D grid from 1D array.(Debug code included via print statements)
-    print("\nComputing SDFs...")
+    # Using parallel computation to speed up by computing both SDFs simultaneously via ThreadPoolExecutor
+    print("\nComputing SDFs in parallel...")
     t0 = time()
 
-    print("Computing SDF for mesh A")
-    sdf_a = compute_sdf(trimesh_a, query_points, resolution)
-    t1 = time()
-    print(f"  Mesh A done in {t1 - t0:.1f}s")
-    print(f"  SDF A range: [{sdf_a.min():.3f}, {sdf_a.max():.3f}]")
+    # Prepare arguments for parallel computation (mesh, query_points, resolution) for each mesh
+    args_a = (trimesh_a, query_points, resolution)
+    args_b = (trimesh_b, query_points, resolution)
 
-    print("Computing SDF for mesh B...")
-    sdf_b = compute_sdf(trimesh_b, query_points, resolution)
-    t2 = time()
-    print(f"  Mesh B done in {t2 - t1:.1f}s")
+    # Use ThreadPoolExecutor to compute both SDFs in parallel (2 workers for 2 meshes)
+    # ThreadPool is preferred here as mesh_to_sdf releases the GIL during computation
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        print("Computing SDF for mesh A and mesh B simultaneously...")
+        future_a = executor.submit(compute_sdf_worker, args_a)
+        future_b = executor.submit(compute_sdf_worker, args_b)
+        
+        # Wait for both computations to complete and retrieve results
+        sdf_a = future_a.result()
+        sdf_b = future_b.result()
+
+    t1 = time()
+    print(f"  Both meshes done in {t1 - t0:.1f}s (parallel computation)")
+    print(f"  SDF A range: [{sdf_a.min():.3f}, {sdf_a.max():.3f}]")
     print(f"  SDF B range: [{sdf_b.min():.3f}, {sdf_b.max():.3f}]")
 
-    print(f"\nSDF computation complete! Total time: {t2 - t0:.1f}s")
+    print(f"\nSDF computation complete! Total time: {t1 - t0:.1f}s")
 
     return create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, num_frames)
