@@ -2,8 +2,8 @@ from mesh_tools import load_and_clean_mesh, pyvista_to_trimesh, repair_mesh, nor
 from sdf_tools import morph_meshes
 from viewer import ScrollViewer
 
-TARGET_FACES = 5000
-RESOLUTION = 64
+TARGET_FACES = 10000
+RESOLUTION = 120
 FRAME_COUNT = 20
 
 def main():
@@ -14,7 +14,7 @@ def main():
     # the decimation occuring before attempting to fix any holes. Decimation is explained more in depth in the mesh_tools.py.
     TARGET_FACES = 5000
 
-    mesh_a = load_and_clean_mesh('test_models/hippocampus.stl', target_faces=TARGET_FACES)
+    mesh_a = load_and_clean_mesh('test_models/Hand_SUPERfinal.stl', target_faces=TARGET_FACES)
     mesh_b = load_and_clean_mesh('test_models/brain.stl', target_faces=TARGET_FACES)
     trimesh_a = pyvista_to_trimesh(mesh_a)
     trimesh_b = pyvista_to_trimesh(mesh_b)

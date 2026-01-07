@@ -72,9 +72,12 @@ def create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, frames
             morph_mesh = pv.PolyData(verts, faces_pv) # Intermediate mesh is created here.
             morph_mesh = morph_mesh.clean()
 
-            if not(morph_mesh.is_watertight):
-                print("Intermediate morph was not watertight. Filling holes")
+            # Just fill holes regardless - newer PyVista removed is_watertight property
+            # and it doesn't hurt to run fill_holes anyway
+            try:
                 morph_mesh = morph_mesh.fill_holes(hole_size=100)
+            except:
+                pass
 
 
             morph_frames.append(morph_mesh)
