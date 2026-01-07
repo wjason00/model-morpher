@@ -19,7 +19,7 @@ def compute_sdf(mesh_tri, query_points, resolution):
         mesh_tri,
         query_points,
         surface_point_method='sample',
-        sign_method='depth',
+        sign_method='depth', # I think this should be converted to normal, but there are no issues?
         sample_point_count=10000,
         normal_sample_count=5
     )
@@ -49,11 +49,11 @@ def create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, frames
 
         try:
             # Utilise marching cubes to create triangles where the SDF is zero (isosurface extraction)
-            # By trial and error, a slight negative level gives better results for our SDFs. 
+            # By trial and error, a slight negative level gives better results for our SDFs because the surface looks a tiny bit better? 
             level = -0.01
             verts, faces, normals, values = measure.marching_cubes(
                 sdf_interp, 
-                level=level,
+                level=level, # 
                 spacing=(
                     (max_bounds[0] - min_bounds[0]) / (resolution - 1),
                     (max_bounds[1] - min_bounds[1]) / (resolution - 1),
@@ -67,22 +67,25 @@ def create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, frames
             # Create PyVista mesh by accounting for the marching cubes output of verts (V, 3) and faces (F, 3). 
             # Faces results in an integer array representing the vertex indices for each triangle formed. 
             # PyVista mesh requires faces to be formatted as [3, i, j, k, 3, 3, i, j, k, ...] (essentially a repeating 1D array).
+            # (I have absolutely no idea how to recreate this icl) (remember pv stands for pyvista please)
             faces_pv = np.hstack([np.full((len(faces), 1), 3), faces]).ravel()
-
-            # Utilise verts as mesh point and faces_pv as what forms the triangles. 
-            morph_mesh = pv.PolyData(verts, faces_pv)
-
-            # Post-process each frame mesh to improve quality
+            morph_mesh = pv.PolyData(verts, faces_pv) # Intermediate mesh is created here.
             morph_mesh = morph_mesh.clean()
-            morph_mesh = morph_mesh.fill_holes(hole_size=100)
+
+            if not(morph_mesh.is_watertight):
+                print("Intermediate morph was not watertight. Filling holes")
+                morph_mesh = morph_mesh.fill_holes(hole_size=100)
+
 
             morph_frames.append(morph_mesh)
-            print(f"  ✓ Generated mesh with {len(verts)} vertices, {len(faces)} faces")
+            print(f"Mesh has {len(verts)} vertices, {len(faces)} faces")
 
         except Exception as e:
-            print(f"  ✗ Failed for frame {i}: {e}")
+            print(f"  X Failed for frame {i}: {e}")
 
-            # Fall back case in frame is unable to be degenerated, reuse last valid frame. 
+            # Failcase in case the marching cubes fails (could be due to bad interpolation?
+            # If the failcase is true, just utilise the last existing morph frame. (There shouldn't ever not be 1 existing frame due to the 
+            # fact the intermediate mesh can just be the original mesh given t=0 surely)
             if morph_frames:
                 morph_frames.append(morph_frames[-1])
                 print(f"  → Using previous frame as fallback")
@@ -90,7 +93,7 @@ def create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, frames
     return morph_frames
 
 
-def morph_meshes(mesh_a_tri, mesh_b_tri, resolution=64, num_frames=20):
+def morph_meshes(trimesh_a, trimesh_b, resolution=64, num_frames=20):
     """
     Docstring for morph_meshes
     
@@ -99,16 +102,19 @@ def morph_meshes(mesh_a_tri, mesh_b_tri, resolution=64, num_frames=20):
     :param resolution: Resolution of 3D grid. 
     :param num_frames: Number of frames to generate
     """
-    # A bounding box to account for both meshes
-    min_bounds = np.minimum(mesh_a_tri.bounds[0], mesh_b_tri.bounds[0]) - 0.5
-    max_bounds = np.maximum(mesh_a_tri.bounds[1], mesh_b_tri.bounds[1]) + 0.5
+    # Generating a bounding box which uses the xyz minimum and maximum alongside a minimum minus padding and a maximum positive padding
+    # Changing this value has big effects on the computation time (Having like 0.05 causes LOTS of issues)
+    min_bounds = np.minimum(trimesh_a.bounds[0], trimesh_b.bounds[0]) - 0.5
+    max_bounds = np.maximum(trimesh_a.bounds[1], trimesh_b.bounds[1]) + 0.5
 
-    # Create 3D grid coordinates
+    # Generate 1D arrays where the starting point will be the minimum bound and then the end point is the maximum bound. The resolution 
+    # is used to determine the spacing between the points i.e. [0, 10, 5] would give [0, 2.5, 5, 7.5, 10] for resolution = 5 (resolution - 1) 
+    # Minus 1 for the resolution and each of the bounds are split into [x, y, z] so just take their increasing indices (if that makes any sense)
+    # Then generate the grid by ij indexing for (x, y, z) order, whereas xy indexing would give (y,x,z)
     x = np.linspace(min_bounds[0], max_bounds[0], resolution)
     y = np.linspace(min_bounds[1], max_bounds[1], resolution)
     z = np.linspace(min_bounds[2], max_bounds[2], resolution)
 
-    # ij indexing for (x, y, z) order, whereas xy indexing would give (y,x,z)
     grid_x, grid_y, grid_z = np.meshgrid(x, y, z, indexing='ij')
 
     # Ravelling to form a list of 3D points to convert to 1D array via stacking
@@ -116,27 +122,28 @@ def morph_meshes(mesh_a_tri, mesh_b_tri, resolution=64, num_frames=20):
     # Deterministic mapping to 1D index = i * (N_y * N_z) + j * N_z + k and world coordinates = (x[i], y[j], z[k]).
     query_points = np.stack([grid_x.ravel(), grid_y.ravel(), grid_z.ravel()], axis=1)
 
-    print(f"\nGrid resolution: {resolution}x{resolution}x{resolution}")
-    print(f"Total query points: {len(query_points)}")
-    print(f"Grid bounds: min={min_bounds}, max={max_bounds}")
+    print(f"""
+            Grid resolution: {resolution}x{resolution}x{resolution}
+            Total number of query points: {len(query_points)}
+            Bounding Box: min={min_bounds}, max={max_bounds}
+""")
 
-    # Computing SDF values for both meshes at the query points and then reconverting to 3D grid from 1D array.
+    # Computing SDF values for both meshes at the query points and then reconverting to 3D grid from 1D array.(Debug code included via print statements)
     print("\nComputing SDFs...")
     t0 = time()
 
     print("Computing SDF for mesh A")
-    sdf_a = compute_sdf(mesh_a_tri, query_points, resolution)
+    sdf_a = compute_sdf(trimesh_a, query_points, resolution)
     t1 = time()
     print(f"  Mesh A done in {t1 - t0:.1f}s")
     print(f"  SDF A range: [{sdf_a.min():.3f}, {sdf_a.max():.3f}]")
 
     print("Computing SDF for mesh B...")
-    sdf_b = compute_sdf(mesh_b_tri, query_points, resolution)
+    sdf_b = compute_sdf(trimesh_b, query_points, resolution)
     t2 = time()
     print(f"  Mesh B done in {t2 - t1:.1f}s")
     print(f"  SDF B range: [{sdf_b.min():.3f}, {sdf_b.max():.3f}]")
 
     print(f"\nSDF computation complete! Total time: {t2 - t0:.1f}s")
 
-    # Generate morph frames
     return create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, num_frames)
