@@ -2,7 +2,7 @@
 
 A framework for generating smooth morphological transitions between two 3D meshes using SDF interpolation and isosurface extraction via Marching Cubes formulae.
 
-![Recording 2026-01-06 at 18 12 31](https://github.com/user-attachments/assets/50d7a3e8-b733-4518-be16-d062bc56182c)
+![Recording 2026-01-07 at 22 35 43](https://github.com/user-attachments/assets/9cb51200-2bd1-4477-a82e-4c4d09302774)
 
 ## What it does
 
