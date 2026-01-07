@@ -21,7 +21,7 @@ A framework for generating smooth morphological transitions between two 3D meshe
 
 - Generates intermediate mesh representations: 
 
-\[ \text{SDF}_{\text{morph}}(t) = (1-t) \cdot \text{SDF}_A + t \cdot \text{SDF}_B \quad t \in [0,1] \]
+$$\text{SDF}_{\text{morph}}(t) = (1-t) \times \text{SDF}_A + t \times \text{SDF}_B \quad t \in [0,1]$$
 
 ### 4. Reconstruction of Surface
 
@@ -30,9 +30,9 @@ A framework for generating smooth morphological transitions between two 3D meshe
 
 ### 5. Coordinate Mapping
 
-For a grid with resolution \((N_x, N_y, N_z)\) and voxel indices \((i,j,k)\) therefore meaning that each voxel coordinate can be mapped to a real world space:
-- **Flattened index:** \(i \cdot N_y N_z + j \cdot N_z + k\) (done via ravelling of meshgrid by NumPy)
-- **World position:** \((x_i, y_j, z_k)\) 
+For a grid with resolution $\(N_x, N_y, N_z)\$ and voxel indices $\(i,j,k)\$ therefore meaning that each voxel coordinate can be mapped to a real world space:
+- **Flattened index:** $\(i \times N_y N_z + j \cdot N_z + k\)$ (done via ravelling of meshgrid by NumPy)
+- **World position:** $\(x_i, y_j, z_k)\$ 
 
 
 ## Prerequisites
@@ -43,10 +43,12 @@ For a grid with resolution \((N_x, N_y, N_z)\) and voxel indices \((i,j,k)\) the
 ## Setup
 
 ```bash
+# Windows
 python -m venv .venv
-.venv\Scripts\activate  # Windows
-# or
-source .venv/bin/activate  # macOS/Linux
+.venv\Scripts\activate
+
+# macOS or Linux
+source .venv/bin/activate 
 
 pip install -r requirements.txt
 ```
@@ -60,15 +62,15 @@ pip install -r requirements.txt
 python main.py
 ```
 
-**Controls:** Scroll wheel navigates frames | Left-drag rotates | Right-drag zooms | Q quits
+**Controls:** Scroll wheel navigates frames | Left-drag pans | Right-drag zooms | Q quits
 
 ## Configuration
 
 Parameters in `main.py`:
 
 ```python
-TARGET_FACES = 5000  # Target faces after decimation
-resolution = 64      # SDF grid resolution (R³)
+TARGET_FACES = 5000  # Target faces after decimation (lower means more aggressive removal of faces)
+resolution = 64      # SDF meshgrid resolution (R³)
 num_frames = 20      # Number of frames to generate
 ```
 
@@ -76,9 +78,9 @@ num_frames = 20      # Number of frames to generate
 
 ```
 model-morpher/
-├── main.py              # Main execution script
-├── mesh_tools.py        # Mesh handling
-├── sdf_tools.py       # SDF computation and frame generation
+├── main.py              
+├── mesh_tools.py        # Mesh handling functions
+├── sdf_tools.py         # SDF computation, marching cubes and frame generation
 ├── viewer.py            # Interactive 3D viewer 
 ├── requirements.txt     # Python dependencies
 └── test_models/
