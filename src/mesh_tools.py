@@ -60,21 +60,27 @@ def repair_mesh(mesh):
     # Firstly, unique_faces is used to remove duplicate faces and then nondegenerate_faces the degenerate faces (degenerate just means it doesn't really exist due to an area of 0)
     mesh.update_faces(mesh.unique_faces())
     mesh.update_faces(mesh.nondegenerate_faces())
-
-    # Repairing any holes / normals before SDF computation. IF any work was done, ensure that you repeat the repair steps to ensure no weird artifacts have appeared. 
-    if not mesh.is_watertight:
-        print("Repairing mesh...")
-
-        mesh.fill_holes()
+    mesh.remove_unreferenced_vertices()
+    
+    # Multiple repair passes for stubborn meshes
+    for repair_pass in range(3):
+        if mesh.is_watertight:
+            break
+            
+        print(f"  Repair pass {repair_pass + 1}...")
+        
+        # Fix winding and normals first - critical for SDF sign computation
         mesh.fix_normals()
+        mesh.fill_holes()
+        
+        # Clean up any artifacts created by hole filling
         mesh.update_faces(mesh.unique_faces())
         mesh.update_faces(mesh.nondegenerate_faces())
-
-        mesh.update_faces(mesh.unique_faces())
-        mesh.update_faces(mesh.nondegenerate_faces())
-    else:
-        print(" Already watertight - skipping repair")
-
+        mesh.remove_unreferenced_vertices()
+        
+        # Merge close vertices that might be causing gaps
+        mesh.merge_vertices(merge_tex=True, merge_norm=True)
+    
     return mesh.is_watertight
 
 def normalise_meshes(mesh_a, mesh_b):

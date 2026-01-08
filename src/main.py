@@ -3,14 +3,15 @@ from mesh_tools import load_and_clean_mesh, pyvista_to_trimesh, repair_mesh, nor
 from sdf_tools import morph_meshes
 from viewer import ScrollViewer
 
-TARGET_FACES = 5000 # Number of faces after decimating the mesh. 
-RESOLUTION = 120 # Resolution increases cost cubically (meshgrid)
+TARGET_FACES = 15000 # Number of faces after decimating the mesh. 
+RESOLUTION = 150 # Resolution increases cost cubically (meshgrid)
 FRAME_COUNT = 20
 
 # Using mouse brain atlas (can be swapped out in future)
 atlas = BrainGlobeAtlas('allen_mouse_25um', check_latest = False)
 
 # Loading the brain from the brain atlas instead of using file
+# REPLACE ATLAS PART WITH YOUR OWN MESH FILE PATHS IF WANTED
 object_a = atlas.meshfile_from_structure("DG")
 object_b = atlas.meshfile_from_structure("root")
 

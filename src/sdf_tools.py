@@ -21,9 +21,9 @@ def compute_sdf(mesh_tri, query_points, resolution):
         mesh_tri,
         query_points,
         surface_point_method='sample',
-        sign_method='depth', # I think this should be converted to normal, but there are no issues?
-        sample_point_count=10000,
-        normal_sample_count=5
+        sign_method='normal',
+        sample_point_count=50000,  # Increasing will cause better accuracy. 
+        normal_sample_count=11  # Odd number for better voting on sign determination
     )
 
     # Reshape to a 3D grid from 1D array (NumPy array reshaping)
@@ -62,16 +62,17 @@ def create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, frames
 
         try:
             # Utilise marching cubes to create triangles where the SDF is zero (isosurface extraction)
-            # By trial and error, a slight negative level gives better results for our SDFs because the surface looks a tiny bit better? 
-            level = -0.01
+            # Using level=0.0 for true surface; negative values (previously was -0.01 can cause weird artifacting)
+            level = 0.0
             verts, faces, normals, values = measure.marching_cubes(
                 sdf_interp, 
-                level=level, # 
+                level=level,
                 spacing=(
                     (max_bounds[0] - min_bounds[0]) / (resolution - 1),
                     (max_bounds[1] - min_bounds[1]) / (resolution - 1),
                     (max_bounds[2] - min_bounds[2]) / (resolution - 1)
-                ) # x, y, z spacing 
+                ), # x, y, z spacing
+                allow_degenerate=False  # Reject degenerate triangles that cause artifacts
             )
 
             # Accounts for mesh offset due to the bounding box and offsets by such.
@@ -83,15 +84,21 @@ def create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, frames
             # (I have absolutely no idea how to recreate this icl) (remember pv stands for pyvista please)
             faces_pv = np.hstack([np.full((len(faces), 1), 3), faces]).ravel()
             morph_mesh = pv.PolyData(verts, faces_pv) # Intermediate mesh is created here.
-            morph_mesh = morph_mesh.clean()
-
-            # Just fill holes regardless - newer PyVista removed is_watertight property
-            # and it doesn't hurt to run fill_holes anyway
+            
+            # Clean and repair the marching cubes output
+            morph_mesh = morph_mesh.clean(tolerance=1e-6)  # Merge very close vertices
+            
+            # Fill holes aggressively - use large hole_size to catch bigger gaps
             try:
-                morph_mesh = morph_mesh.fill_holes(hole_size=100)
+                morph_mesh = morph_mesh.fill_holes(hole_size=1000)
             except:
                 pass
-
+            
+            # Smooth the mesh slightly to reduce jagged artifacts from marching cubes
+            try:
+                morph_mesh = morph_mesh.smooth(n_iter=20, relaxation_factor=0.1)
+            except:
+                pass
 
             morph_frames.append(morph_mesh)
             print(f"Mesh has {len(verts)} vertices, {len(faces)} faces")
