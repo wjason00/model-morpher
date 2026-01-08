@@ -1,3 +1,5 @@
+import multiprocessing
+
 import numpy as np
 import pyvista as pv
 
@@ -5,8 +7,7 @@ from mesh_to_sdf import mesh_to_sdf
 from skimage import measure
 from time import time
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-import multiprocessing
-
+from os import cpu_count
 
 def compute_sdf(mesh_tri, query_points, resolution):
     """
@@ -55,7 +56,7 @@ def create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, frames
     morph_frames = []
 
     for i, t in enumerate(np.linspace(0, 1, frames)):
-        print(f"Generating morph frame {i+1}/{frames} (t={t:.2f})...")
+        # print(f"Generating morph frame {i+1}/{frames} (t={t:.2f})...")
 
         # Interpolate between the two SDFs
         sdf_interp = (1 - t) * sdf_a + t * sdf_b
@@ -101,7 +102,7 @@ def create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, frames
                 pass
 
             morph_frames.append(morph_mesh)
-            print(f"Mesh has {len(verts)} vertices, {len(faces)} faces")
+            # print(f"Mesh has {len(verts)} vertices, {len(faces)} faces")
 
         except Exception as e:
             print(f"  X Failed for frame {i}: {e}")
@@ -116,7 +117,7 @@ def create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, frames
     return morph_frames
 
 
-def morph_meshes(trimesh_a, trimesh_b, resolution=64, num_frames=20):
+def morph_meshes(trimeshes, resolution=64, num_frames=20):
     """
     Docstring for morph_meshes
     
@@ -127,8 +128,8 @@ def morph_meshes(trimesh_a, trimesh_b, resolution=64, num_frames=20):
     """
     # Generating a bounding box which uses the xyz minimum and maximum alongside a minimum minus padding and a maximum positive padding
     # Changing this value has big effects on the computation time (Having like 0.05 causes LOTS of issues)
-    min_bounds = np.minimum(trimesh_a.bounds[0], trimesh_b.bounds[0]) - 0.5
-    max_bounds = np.maximum(trimesh_a.bounds[1], trimesh_b.bounds[1]) + 0.5
+    min_bounds = np.minimum([trimesh.bounds[0] for trimesh in trimeshes], axis = 0) - 0.5
+    max_bounds = np.maximum([trimesh.bounds[1] for trimesh in trimeshes], axis = 0) + 0.5
 
     # Generate 1D arrays where the starting point will be the minimum bound and then the end point is the maximum bound. The resolution 
     # is used to determine the spacing between the points i.e. [0, 10, 5] would give [0, 2.5, 5, 7.5, 10] for resolution = 5 (resolution - 1) 
@@ -148,7 +149,7 @@ def morph_meshes(trimesh_a, trimesh_b, resolution=64, num_frames=20):
     print(f"""
             Grid resolution: {resolution}x{resolution}x{resolution}
             Total number of query points: {len(query_points)}
-            Bounding Box: min={min_bounds}, max={max_bounds}
+            Global Bounding Box: min={min_bounds}, max={max_bounds}
 """)
 
     # Computing SDF values for both meshes at the query points and then reconverting to 3D grid from 1D array.(Debug code included via print statements)
@@ -156,26 +157,125 @@ def morph_meshes(trimesh_a, trimesh_b, resolution=64, num_frames=20):
     print("\nComputing SDFs in parallel...")
     t0 = time()
 
-    # Prepare arguments for parallel computation (mesh, query_points, resolution) for each mesh
-    args_a = (trimesh_a, query_points, resolution)
-    args_b = (trimesh_b, query_points, resolution)
+    args = [(trimesh, query_points, resolution) for trimesh in trimeshes]
 
-    # Use ThreadPoolExecutor to compute both SDFs in parallel (2 workers for 2 meshes)
-    # ThreadPool is preferred here as mesh_to_sdf releases the GIL during computation
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        print("Computing SDF for mesh A and mesh B simultaneously...")
-        future_a = executor.submit(compute_sdf_worker, args_a)
-        future_b = executor.submit(compute_sdf_worker, args_b)
-        
-        # Wait for both computations to complete and retrieve results
-        sdf_a = future_a.result()
-        sdf_b = future_b.result()
+    # Use ThreadPoolExecutor to compute both SDFs in parallel. 
+    # Dynamic coding for the number of max_workers based on the CPU count cores avilable. 
+    # ThreadPool is preferred here as mesh_to_sdf releases the GIL (global interpreter lock) during computation
+    with ThreadPoolExecutor(max_workers=min(len(trimeshes), cpu_count())) as executor:
+        sdfs = list(executor.map(compute_sdf_worker, args))
 
     t1 = time()
-    print(f"  Both meshes done in {t1 - t0:.1f}s (parallel computation)")
-    print(f"  SDF A range: [{sdf_a.min():.3f}, {sdf_a.max():.3f}]")
-    print(f"  SDF B range: [{sdf_b.min():.3f}, {sdf_b.max():.3f}]")
+    
+    print(f"All SDFs computed in {t1 - t0:.1f}s")
+    
+    all_morph_frames = [] 
 
-    print(f"\nSDF computation complete! Total time: {t1 - t0:.1f}s")
+    for i in range(len(trimeshes) - 1):
+        # print(f"\nGenerating transition {i+1}/{len(trimeshes)-1}: Mesh {i+1} → Mesh {i+2}")
+        
+        # For all transitions except the last, exclude the final frame to avoid duplicates
+        # (the end of transition i is the start of transition i+1)
+        if i < len(trimeshes) - 2:
+            frames = create_morph_frames(
+                sdfs[i], sdfs[i+1],
+                min_bounds, max_bounds,
+                resolution, frames
+            )
+            all_morph_frames.extend(frames[:-1])  # Exclude last frame
+        else:
+            # For the last transition, include all frames
+            frames = create_morph_frames(
+                sdfs[i], sdfs[i+1],
+                min_bounds, max_bounds,
+                resolution, frames
+            )
+            all_morph_frames.extend(frames)
+    
+    print(f"\n{'='*50}")
+    print(f"Total frames generated: {len(all_morph_frames)}")
+    print(f"{'='*50}")
 
-    return create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, num_frames)
+    return all_morph_frames
+
+
+def morph_mesh_sequence(trimeshes, resolution=64, frames_per_transition=20):
+    """
+    Morph through a sequence of multiple meshes (A → B → C → ...).
+    
+    :param trimeshes: List of trimesh objects to morph through in order
+    :param resolution: Resolution of 3D grid
+    :param frames_per_transition: Number of frames for each transition between consecutive meshes
+    :return: List of all morph frames for the entire sequence
+    """
+    if len(trimeshes) < 2:
+        raise ValueError("Need at least 2 meshes for morphing")
+    
+    print(f"\n{'='*50}")
+    print(f"Multi-mesh morphing: {len(trimeshes)} meshes, {len(trimeshes)-1} transitions")
+    print(f"{'='*50}")
+    
+    # Compute global bounding box that encompasses ALL meshes
+    all_min_bounds = np.min([mesh.bounds[0] for mesh in trimeshes], axis=0) - 0.5
+    all_max_bounds = np.max([mesh.bounds[1] for mesh in trimeshes], axis=0) + 0.5
+    
+    # Generate the shared grid for all meshes
+    x = np.linspace(all_min_bounds[0], all_max_bounds[0], resolution)
+    y = np.linspace(all_min_bounds[1], all_max_bounds[1], resolution)
+    z = np.linspace(all_min_bounds[2], all_max_bounds[2], resolution)
+    
+    grid_x, grid_y, grid_z = np.meshgrid(x, y, z, indexing='ij')
+    query_points = np.stack([grid_x.ravel(), grid_y.ravel(), grid_z.ravel()], axis=1)
+    
+    print(f"""
+            Grid resolution: {resolution}x{resolution}x{resolution}
+            Total query points: {len(query_points)}
+            Global bounding box: min={all_min_bounds}, max={all_max_bounds}
+""")
+    
+    # Pre-compute all SDFs in parallel
+    print("Pre-computing SDFs for all meshes...")
+    t0 = time()
+    
+    # Prepare arguments for all meshes
+    all_args = [(mesh, query_points, resolution) for mesh in trimeshes]
+    
+    # Compute all SDFs in parallel
+    with ThreadPoolExecutor(max_workers=min(len(trimeshes), 4)) as executor:
+        all_sdfs = list(executor.map(compute_sdf_worker, all_args))
+    
+    t1 = time()
+    print(f"  All {len(trimeshes)} SDFs computed in {t1 - t0:.1f}s")
+    
+    for i, sdf in enumerate(all_sdfs):
+        print(f"  SDF {i+1} range: [{sdf.min():.3f}, {sdf.max():.3f}]")
+    
+    # Generate morph frames for each consecutive pair
+    all_morph_frames = []
+    
+    for i in range(len(trimeshes) - 1):
+        print(f"\nGenerating transition {i+1}/{len(trimeshes)-1}: Mesh {i+1} → Mesh {i+2}")
+        
+        # For all transitions except the last, exclude the final frame to avoid duplicates
+        # (the end of transition i is the start of transition i+1)
+        if i < len(trimeshes) - 2:
+            frames = create_morph_frames(
+                all_sdfs[i], all_sdfs[i+1],
+                all_min_bounds, all_max_bounds,
+                resolution, frames_per_transition
+            )
+            all_morph_frames.extend(frames[:-1])  # Exclude last frame
+        else:
+            # For the last transition, include all frames
+            frames = create_morph_frames(
+                all_sdfs[i], all_sdfs[i+1],
+                all_min_bounds, all_max_bounds,
+                resolution, frames_per_transition
+            )
+            all_morph_frames.extend(frames)
+    
+    print(f"\n{'='*50}")
+    print(f"Total frames generated: {len(all_morph_frames)}")
+    print(f"{'='*50}")
+    
+    return all_morph_frames

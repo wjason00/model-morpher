@@ -1,6 +1,8 @@
 # Model Morpher (Python-first draft)
 
-A framework for generating smooth morphological transitions between two 3D meshes using SDF interpolation and isosurface extraction via Marching Cubes formulae.
+A framework for generating smooth morphological transitions between 3D meshes using SDF interpolation and isosurface extraction via Marching Cubes formulae, before displaying in a PyVista scroller to allow for controlled morphing.
+
+This is a personal passion project of mine.
 
 ![Recording 2026-01-08 at 13 27 08](https://github.com/user-attachments/assets/344589aa-08c4-428c-85fd-9b129692bbfb)
 *Model Morph from brain model to hand model. Computed at resolution = 100 with a time of 6.5s and TARGET_FACES = 5000.*
@@ -11,6 +13,7 @@ A framework for generating smooth morphological transitions between two 3D meshe
 ## What it does
 
 ### 1. Preparing Meshes
+
 - Cleans meshes (hole filling and computes normals)
 - Decimates faces to simplify mesh
 - Removes degenerate faces
@@ -20,16 +23,17 @@ A framework for generating smooth morphological transitions between two 3D meshe
 
 ### 2. Grid Generation & Coordinate Mapping
 
-- 3D voxel bounding grid that includes both meshes calculated. 
+- 3D voxel bounding grid that accounts for all the meshes
 
 For a grid with resolution $(N_x, N_y, N_z)$ and voxel indices $(i, j, k)$:
 - **Flattened index:** $i \times N_y N_z + j \times N_z + k$ (done via ravelling of meshgrid by NumPy)
 - **World position:** $(x_i, y_j, z_k)$ where coordinates are linearly spaced between bounds
 
 ### 3. SDF Computation
-- Calculate signed distance for each grid point to both mesh surfaces
+
+- Calculate signed distance for each grid point for pairs of the meshes.
 - Utilises typical conventions (− for interior, + for exterior)
-- Parallelised computation to reduce time complexity
+- Parallelised computation to reduce time complexity (will depend on user number of cores - accounted for)
 
 ### 4. Interpolation of SDF
 
@@ -112,17 +116,15 @@ model-morpher/
 │   ├── sdf_tools.py          # SDF computation, marching cubes and frame generation
 │   └── viewer.py             # Interactive 3D viewer
 └── test_models/
-    ├── brain.stl
     ├── halfpoly_suzanne.stl  # https://www.thingiverse.com/thing:2522740
-    ├── Hand_SUPERfinal.stl   # https://www.thingiverse.com/thing:31331
-    └── hippocampus.stl       
+    └── Hand_SUPERfinal.stl   # https://www.thingiverse.com/thing:31331      
 
 ```
 
 
 ## Limitations
 
-- Repairing meshes is limited to simple topological defects (i.e. simple holes)
+- Repairing meshes is limited to simple topological defects (i.e. simple holes) and therefore there will still be some weird artifacts. 
 - Memory scales (and therefore the time taken) cubically with grid resolution
 - Computational complexity (and the number of mistakes unfortunately) dependent on mesh density and SDF sampling rate.
 
@@ -135,12 +137,12 @@ Generally aiming to produce a stable Python-only version before considering othe
 
 ## Development Roadmap
 
-- [ ] GPU-accelerated SDF computation
+- [ ] GPU-accelerated SDF computation (In process - however really hard to understand correct packages / dependencies for PyTorch3D and PyTorch)
 - [X] Batch processing capabilities (Accomplished for CPU only) 
 - [ ] Animation export (video/GIF formats)
 - [ ] File insertion via GUI for high-level mesh morphing.
 - [ ] Convert into a deployable and stable package.
-- [ ] Increase the number of meshes that are able to be morphed. 
+- [X] Increase the number of meshes that are able to be morphed. (For however many meshes you want)
 
 ## License
 

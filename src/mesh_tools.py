@@ -83,27 +83,28 @@ def repair_mesh(mesh):
     
     return mesh.is_watertight
 
-def normalise_meshes(mesh_a, mesh_b):
+def normalise_meshes(meshes):
     """
     Recenter and scale meshes to similar sizes for improved intermediate SDF computation
     
-    :param mesh_a: Description
-    :param mesh_b: Description
+    :param meshes: List of trimesh objects to normalise
     """
 
     # Offsetting each meshs' vertices by its centre to appear at world space origin. (just think like voxel origin being at [3, 2, 1] would have to be offset by [-3, -2, -1])
-    mesh_a.vertices -= mesh_a.centroid
-    mesh_b.vertices -= mesh_b.centroid
+    for mesh in meshes: 
+        mesh.vertices -= mesh.centroid 
 
-    # Computing diagonal lengths to account for scale factor (3D space)
-    # Generating bounds from trimesh to ensure consistency
+    reference_diag = np.linalg.norm(meshes[0].bounds[1] - meshes[0].bounds[0])
+
+    # Start from the first mesh and scale all others relative to it. 
     # Simple volume scale factor formula i.e. big / small = scale then multiply the small one. 
-    bounds_a = mesh_a.bounds
-    bounds_b = mesh_b.bounds
+    for i, mesh in enumerate(meshes[1: ], start=1): 
+        # Calculate the normal of the diagonal to find scale factor 
+        mesh_diag = np.linalg.norm(mesh.bounds[1] - mesh.bounds[0])
 
-    diag_a = np.linalg.norm(bounds_a[1] - bounds_a[0])
-    diag_b = np.linalg.norm(bounds_b[1] - bounds_b[0])
-    scale_factor = diag_a / diag_b
-    mesh_b.vertices *= scale_factor
+        scale_factor = reference_diag / mesh_diag
+        mesh.vertices *= scale_factor
 
-    return mesh_a, mesh_b
+        print(f"{scale_factor} scale for mesh {i+1}") 
+
+    return meshes
