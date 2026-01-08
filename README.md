@@ -10,6 +10,11 @@ This is a personal passion project of mine.
 ![Recording 2026-01-08 at 13 30 48](https://github.com/user-attachments/assets/d2f6f64e-06fb-41a5-a455-3831474cf190)
 *Model Morph from dentage gyrus (DG brainatlas code) to brain (root brainatlas code). Computed at resolution = 150 with a time of 39.2s and TARGET_FACES = 15,000.*
 
+![Recording 2026-01-08 at 19 41 29](https://github.com/user-attachments/assets/75a6cd31-2b7c-462c-b599-31075d81a48c)
+*Model Morph (dentate gyrus -> hand model -> brain -> suzanne (blender monkey) -> dentate gyrus). Computed at resolution = 150 and TARGET_FACES = 15,000* 
+*Total Time = 84.52 seconds. SDF Computation = 50.9s*
+
+
 ## What it does
 
 ### 1. Preparing Meshes
