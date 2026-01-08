@@ -46,11 +46,14 @@ Generates intermediate SDF representations by linear blending:
 
 $$\text{SDF}_{\text{morph}}(t) = (1-t) \times \text{SDF}_A + t \times \text{SDF}_B \quad t \in [0,1]$$
 
-### 5. Surface Reconstruction
-
-- Utilise marching cubes to extract isosurface at each interpolation step (threshold: 0.0)
-- Map vertices from voxel coordinates back to world space using grid spacing
-- Smooth the surface to remove marching cube artifacting
+### 5. Surface Reconstruction / Frame Generation 
+- Multi-core parallelised transitioning of frames. 
+- Utilise marching cubes to extract isosurface at each interpolation step (threshold: 0.0, with a spacing defined by resolution) 
+- Map vertices from voxel coordinates back to world space using grid spacing (3D -> 1D array)
+- Intermediatae mesh generation from the vertices and faces. 
+- Post-process the surface (clean, fill and smooth)
+- Account for errors by using fallback frames (i.e. the last frame generated)
+  
 
 ### 6. Interactive Viewer
 
