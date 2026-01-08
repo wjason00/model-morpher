@@ -2,11 +2,11 @@
 
 A framework for generating smooth morphological transitions between two 3D meshes using SDF interpolation and isosurface extraction via Marching Cubes formulae.
 
-![Recording 2026-01-07 at 22 35 43](https://github.com/user-attachments/assets/9cb51200-2bd1-4477-a82e-4c4d09302774)
-*Model Morph from brain model to hand model. Computed at resolution = 100 with a time of 7.6s and TARGET_FACES = 5000.*
+![Recording 2026-01-08 at 13 27 08](https://github.com/user-attachments/assets/344589aa-08c4-428c-85fd-9b129692bbfb)
+*Model Morph from brain model to hand model. Computed at resolution = 100 with a time of 6.5s and TARGET_FACES = 5000.*
 
-![Recording 2026-01-08 at 13 01 13](https://github.com/user-attachments/assets/3a8f679d-b27d-46db-9200-708cc5171db5)
-*Model Morph from dentage gyrus (DG brainatlas code) to brain (root brainatlas code). Computed at resolution = 150 with a time of 17.4s and TARGET_FACES = 15,000.*
+![Recording 2026-01-08 at 13 30 48](https://github.com/user-attachments/assets/d2f6f64e-06fb-41a5-a455-3831474cf190)
+*Model Morph from dentage gyrus (DG brainatlas code) to brain (root brainatlas code). Computed at resolution = 150 with a time of 39.2s and TARGET_FACES = 15,000.*
 
 ## What it does
 
@@ -113,11 +113,12 @@ Generally aiming to produce a stable Python-only version before considering othe
 
 ## Development Roadmap
 
-- GPU-accelerated SDF computation
-- Batch processing capabilities
-- Animation export (video/GIF formats)
-- File insertion via GUI for high-level mesh morphing.
-- Convert into a deployable and stable package. 
+- [ ] GPU-accelerated SDF computation
+- [X] Batch processing capabilities (Accomplished for CPU only) 
+- [ ] Animation export (video/GIF formats)
+- [ ] File insertion via GUI for high-level mesh morphing.
+- [ ] Convert into a deployable and stable package.
+- [ ] Increase the number of meshes that are able to be morphed. 
 
 ## License
 
