@@ -12,27 +12,28 @@ def load_and_clean_mesh(file_path, target_faces = 5000, hole_size = 10000):
     :param target_faces: Number of faces after decimation (increase to increase quality)
     :param hole_size: Maximum size of holes to fill in the mesh (increase to fill more holes)
     """
-    if path.exists(file_path):
-        mesh = pv.read(file_path)
-        
-        # Cleaning just merges duplicate points (near-duplicate to my knowledge) and deletes unreferenced vertices/ 
-        # It also removes weird artifacts which may have a domino effect later on.
-        # Computing normals is important because later on SDF computation utilises this for
-        # sign estimation / repairing normals which were flipped.
-        mesh = mesh.clean()
-        mesh = mesh.fill_holes(hole_size=hole_size) 
-        mesh = mesh.compute_normals(cell_normals=False, point_normals=True, auto_orient_normals=True)
-
-        # Decimating essentially identifies the edges that are most likely to change the least (via looking at curvature and length and etc.)
-        # and removes these edges / triangles alongside attempting to keep the important stuff. Then it worries about connectivity.
-        if mesh.n_cells > target_faces:   
-            reduction = 1 - (target_faces / mesh.n_cells)
-            mesh = mesh.decimate(reduction)
-            print(f"    Decimated Mesh to: {mesh.n_cells} faces")
-
-        return mesh 
-    else: 
+    
+    if path.exists(file_path): 
+        mesh = pv.read(file_path) 
+    else:
         raise FileNotFoundError(f"Mesh file not found at: {file_path}")
+        
+    # Cleaning just merges duplicate points (near-duplicate to my knowledge) and deletes unreferenced vertices/ 
+    # It also removes weird artifacts which may have a domino effect later on.
+    # Computing normals is important because later on SDF computation utilises this for
+    # sign estimation / repairing normals which were flipped.
+    mesh = mesh.clean()
+    mesh = mesh.fill_holes(hole_size=hole_size) 
+    mesh = mesh.compute_normals(cell_normals=False, point_normals=True, auto_orient_normals=True)
+
+    # Decimating essentially identifies the edges that are most likely to change the least (via looking at curvature and length and etc.)
+    # and removes these edges / triangles alongside attempting to keep the important stuff. Then it worries about connectivity.
+    if mesh.n_cells > target_faces:   
+        reduction = 1 - (target_faces / mesh.n_cells)
+        mesh = mesh.decimate(reduction)
+        print(f"    Decimated Mesh to: {mesh.n_cells} faces")
+
+    return mesh 
 
 def pyvista_to_trimesh(pv_mesh):
     """

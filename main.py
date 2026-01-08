@@ -1,21 +1,25 @@
+from brainglobe_atlasapi import BrainGlobeAtlas
 from mesh_tools import load_and_clean_mesh, pyvista_to_trimesh, repair_mesh, normalise_meshes
 from sdf_tools import morph_meshes
 from viewer import ScrollViewer
 
-TARGET_FACES = 10000
-RESOLUTION = 120
+TARGET_FACES = 10000 # Number of faces after decimating the mesh. 
+RESOLUTION = 120 # Resolution increases cost cubically (meshgrid)
 FRAME_COUNT = 20
+
+# Using mouse brain atlas (can be swapped out in future)
+atlas = BrainGlobeAtlas('allen_mouse_25um', check_latest = False)
+
+# Loading the brain from the brain atlas instead of using file
+object_a = atlas.meshfile_from_structure("DG")
+object_b = atlas.meshfile_from_structure("root")
 
 def main():
 
     print("Loading and validating meshes...") 
 
-    # Number of faces after decimating the mesh. Loading and cleaning the mesh is different to repairing it due to 
-    # the decimation occuring before attempting to fix any holes. Decimation is explained more in depth in the mesh_tools.py.
-    TARGET_FACES = 5000
-
-    mesh_a = load_and_clean_mesh('test_models/Hand_SUPERfinal.stl', target_faces=TARGET_FACES)
-    mesh_b = load_and_clean_mesh('test_models/brain.stl', target_faces=TARGET_FACES)
+    mesh_a = load_and_clean_mesh(object_a, target_faces=TARGET_FACES)
+    mesh_b = load_and_clean_mesh(object_b, target_faces=TARGET_FACES)
     trimesh_a = pyvista_to_trimesh(mesh_a)
     trimesh_b = pyvista_to_trimesh(mesh_b)
 
