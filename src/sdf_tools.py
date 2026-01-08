@@ -116,6 +116,8 @@ def create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, frames
 
     return morph_frames
 
+def create_morph_frames_worker(args):
+    return create_morph_frames(*args)
 
 def morph_meshes(trimeshes, resolution=64, num_frames=20):
     """
@@ -216,8 +218,8 @@ def morph_mesh_sequence(trimeshes, resolution=64, frames_per_transition=20):
     print(f"{'='*50}")
     
     # Compute global bounding box that encompasses ALL meshes
-    all_min_bounds = np.min([mesh.bounds[0] for mesh in trimeshes], axis=0) - 0.5
-    all_max_bounds = np.max([mesh.bounds[1] for mesh in trimeshes], axis=0) + 0.5
+    all_min_bounds = np.min([mesh.bounds[0] for mesh in trimeshes], axis=0) - 0.1
+    all_max_bounds = np.max([mesh.bounds[1] for mesh in trimeshes], axis=0) + 0.1
     
     # Generate the shared grid for all meshes
     x = np.linspace(all_min_bounds[0], all_max_bounds[0], resolution)
@@ -250,28 +252,25 @@ def morph_mesh_sequence(trimeshes, resolution=64, frames_per_transition=20):
     for i, sdf in enumerate(all_sdfs):
         print(f"  SDF {i+1} range: [{sdf.min():.3f}, {sdf.max():.3f}]")
     
-    # Generate morph frames for each consecutive pair
+    # Generate morph frames as well as the parameters for each consecutive pair
     all_morph_frames = []
+    transistion_args = [] 
+
+    for i in range(len(trimeshes) - 1):     
+        transistion_args.append((all_sdfs[i], all_sdfs[i+1],
+                                all_min_bounds, all_max_bounds,
+                                resolution, frames_per_transition))
     
-    for i in range(len(trimeshes) - 1):
-        print(f"\nGenerating transition {i+1}/{len(trimeshes)-1}: Mesh {i+1} → Mesh {i+2}")
-        
-        # For all transitions except the last, exclude the final frame to avoid duplicates
-        # (the end of transition i is the start of transition i+1)
+    # Limit number of cores to minimum number of cores avilable / needed. 
+    with ProcessPoolExecutor(max_workers = min(len(trimeshes) - 1, cpu_count())) as executor:
+        t_results = list(executor.map(create_morph_frames_worker, transistion_args))
+
+    # For all transitions except the last, exclude the final frame to avoid duplicates
+    # (the end of transition i is the start of transition i+1)
+    for i, frames in enumerate(t_results):
         if i < len(trimeshes) - 2:
-            frames = create_morph_frames(
-                all_sdfs[i], all_sdfs[i+1],
-                all_min_bounds, all_max_bounds,
-                resolution, frames_per_transition
-            )
             all_morph_frames.extend(frames[:-1])  # Exclude last frame
-        else:
-            # For the last transition, include all frames
-            frames = create_morph_frames(
-                all_sdfs[i], all_sdfs[i+1],
-                all_min_bounds, all_max_bounds,
-                resolution, frames_per_transition
-            )
+        else: 
             all_morph_frames.extend(frames)
     
     print(f"\n{'='*50}")

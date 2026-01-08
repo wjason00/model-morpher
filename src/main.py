@@ -14,7 +14,7 @@ FRAME_COUNT = 20
 atlas = BrainGlobeAtlas('allen_mouse_25um', check_latest = False)
 
 object_a = atlas.meshfile_from_structure("DG")
-object_b = atlas.meshfile_from_structure("root")
+object_b = atlas.meshfile_from_structure("CB")
 
 # Loading the brain from the brain atlas instead of using file
 # Multi-mesh morphing: Add more structures here for sequence morphing (A → B → C → ...)
@@ -24,7 +24,8 @@ mesh_sequence_sources = [
     atlas.meshfile_from_structure("DG"),    # Dentate Gyrus
     "test_models\Hand_SUPERfinal.stl",   
     atlas.meshfile_from_structure("root"),  # Full brain
-    "test_models\halfpoly_suzanne.stl"
+    "test_models\halfpoly_suzanne.stl", 
+    atlas.meshfile_from_structure("DG"),  # DG again to loop back
 ]
 
 
