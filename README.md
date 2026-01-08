@@ -3,6 +3,10 @@
 A framework for generating smooth morphological transitions between two 3D meshes using SDF interpolation and isosurface extraction via Marching Cubes formulae.
 
 ![Recording 2026-01-07 at 22 35 43](https://github.com/user-attachments/assets/9cb51200-2bd1-4477-a82e-4c4d09302774)
+*Model Morph from brain model to hand model. Computed at resolution = 100 with a time of 7.6s and TARGET_FACES = 5000.*
+
+![Recording 2026-01-08 at 13 01 13](https://github.com/user-attachments/assets/3a8f679d-b27d-46db-9200-708cc5171db5)
+*Model Morph from dentage gyrus (DG brainatlas code) to brain (root brainatlas code). Computed at resolution = 150 with a time of 17.4s and TARGET_FACES = 15,000.*
 
 ## What it does
 
