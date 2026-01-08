@@ -3,7 +3,7 @@ from mesh_tools import load_and_clean_mesh, pyvista_to_trimesh, repair_mesh, nor
 from sdf_tools import morph_meshes
 from viewer import ScrollViewer
 
-TARGET_FACES = 10000 # Number of faces after decimating the mesh. 
+TARGET_FACES = 5000 # Number of faces after decimating the mesh. 
 RESOLUTION = 120 # Resolution increases cost cubically (meshgrid)
 FRAME_COUNT = 20
 

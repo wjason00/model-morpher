@@ -78,14 +78,19 @@ num_frames = 20      # Number of frames to generate
 
 ```
 model-morpher/
-├── main.py              
-├── mesh_tools.py        # Mesh handling functions
-├── sdf_tools.py         # SDF computation, marching cubes and frame generation
-├── viewer.py            # Interactive 3D viewer 
-├── requirements.txt     # Python dependencies
+├── requirements.txt          # Python dependencies
+├── .gitignore
+├── src/
+│   ├── main.py
+│   ├── mesh_tools.py         # Mesh handling functions
+│   ├── sdf_tools.py          # SDF computation, marching cubes and frame generation
+│   └── viewer.py             # Interactive 3D viewer
 └── test_models/
-    ├── hippocampus.stl
-    └── brain.stl
+    ├── brain.stl
+    ├── halfpoly_suzanne.stl  # https://www.thingiverse.com/thing:2522740
+    ├── Hand_SUPERfinal.stl   # https://www.thingiverse.com/thing:31331
+    └── hippocampus.stl       
+
 ```
 
 
