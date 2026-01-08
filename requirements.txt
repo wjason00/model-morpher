@@ -1,7 +1,6 @@
-numpy
-trimesh
-mesh_to_sdf
-scikit-image
-pyvista
-torch
-torchcumesh2sdf
+numpy>=1.21
+trimesh>=3.0
+mesh-to-sdf
+scikit-image>=0.19
+pyvista>=0.36
+torch>=2.0

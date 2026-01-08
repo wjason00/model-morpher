@@ -1,0 +1,17 @@
+name: model-morpher
+channels:
+  - conda-forge
+  - pytorch
+  - defaults
+dependencies:
+  - python=3.10
+  - numpy
+  - scikit-image
+  - pyvista
+  - pytorch
+  - pip
+  - pip:
+    - trimesh
+    - mesh-to-sdf
+    - brainglobe-atlasapi
+ 

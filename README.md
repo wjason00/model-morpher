@@ -11,33 +11,42 @@ A framework for generating smooth morphological transitions between two 3D meshe
 ## What it does
 
 ### 1. Preparing Meshes
-- Cleans meshes (hole fillin and computes normals) 
-- Decimates faces to simplify mesh 
+- Cleans meshes (hole filling and computes normals)
+- Decimates faces to simplify mesh
 - Removes degenerate faces
+- Merge nearby vertices together
 - Centres and scales meshes
 
-### 2. SDF Computation
-- Create 3D voxel grid bounding both meshes 
-- Calculate signed distance for each vertex
-- Utilises typical conventions (- for interior, + for exterior)
 
-### 3. Interpolation of SDF
+### 2. Grid Generation & Coordinate Mapping
 
-- Generates intermediate mesh representations: 
+- 3D voxel bounding grid that includes both meshes calculated. 
+
+For a grid with resolution $(N_x, N_y, N_z)$ and voxel indices $(i, j, k)$:
+- **Flattened index:** $i \times N_y N_z + j \times N_z + k$ (done via ravelling of meshgrid by NumPy)
+- **World position:** $(x_i, y_j, z_k)$ where coordinates are linearly spaced between bounds
+
+### 3. SDF Computation
+- Calculate signed distance for each grid point to both mesh surfaces
+- Utilises typical conventions (− for interior, + for exterior)
+- Parallelised computation to reduce time complexity
+
+### 4. Interpolation of SDF
+
+Generates intermediate SDF representations by linear blending:
 
 $$\text{SDF}_{\text{morph}}(t) = (1-t) \times \text{SDF}_A + t \times \text{SDF}_B \quad t \in [0,1]$$
 
-### 4. Reconstruction of Surface
+### 5. Surface Reconstruction
 
-- Utilise marching cubes to extract isosurface for each intermediate mesh (threshold: -0.01).
-- Map vertices from voxel coordinates to world space utilising grid spacing (NumPy linalg)
+- Utilise marching cubes to extract isosurface at each interpolation step (threshold: 0.0)
+- Map vertices from voxel coordinates back to world space using grid spacing
+- Smooth the surface to remove marching cube artifacting
 
-### 5. Coordinate Mapping
+### 6. Interactive Viewer
 
-For a grid with resolution $\(N_x, N_y, N_z)\$ and voxel indices $\(i,j,k)\$ therefore meaning that each voxel coordinate can be mapped to a real world space:
-- **Flattened index:** $\(i \times N_y N_z + j \cdot N_z + k\)$ (done via ravelling of meshgrid by NumPy)
-- **World position:** $\(x_i, y_j, z_k)\$ 
-
+- PyVista-based 3D viewer with scroll-through frame navigation
+- Mouse wheel controls morph progression between frames
 
 ## Prerequisites
 
@@ -46,12 +55,25 @@ For a grid with resolution $\(N_x, N_y, N_z)\$ and voxel indices $\(i,j,k)\$ the
 
 ## Setup
 
+### Option 1: Conda (Recommended)
+
+```bash
+# Create environment from environment.yml
+conda env create -f environment.yml
+
+# Activate the environment
+conda activate model-morpher
+```
+
+### Option 2: pip/venv
+
 ```bash
 # Windows
 python -m venv .venv
 .venv\Scripts\activate
 
 # macOS or Linux
+python -m venv .venv
 source .venv/bin/activate 
 
 pip install -r requirements.txt
