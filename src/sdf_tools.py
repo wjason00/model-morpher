@@ -1,6 +1,7 @@
 import multiprocessing
 
 import numpy as np
+import cupy as cp
 import pyvista as pv
 
 from mesh_to_sdf import mesh_to_sdf

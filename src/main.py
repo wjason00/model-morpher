@@ -13,14 +13,11 @@ FRAME_COUNT = 20
 # Using mouse brain atlas (can be swapped out in future)
 atlas = BrainGlobeAtlas('allen_mouse_25um', check_latest = False)
 
-object_a = atlas.meshfile_from_structure("DG")
-object_b = atlas.meshfile_from_structure("CB")
-
 # Loading the brain from the brain atlas instead of using file
 # Multi-mesh morphing: Add more structures here for sequence morphing (A → B → C → ...)
 # Example: morph through multiple brain regions
 # REPLACE ATLAS PART WITH YOUR OWN MESH FILE PATHS IF WANTED
-mesh_sequence_sources = [
+meshes = [
     atlas.meshfile_from_structure("DG"),    # Dentate Gyrus
     "test_models\Hand_SUPERfinal.stl",   
     atlas.meshfile_from_structure("root"),  # Full brain
@@ -37,7 +34,7 @@ def prepare_mesh(file_path):
     return tri_mesh
 
 
-def main():
+def main(mesh_sequence_sources=meshes):
     print("Loading and validating meshes...")
     
     # Load and prepare all meshes
