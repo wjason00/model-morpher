@@ -4,6 +4,12 @@ A framework for generating smooth morphological transitions between 3D meshes us
 
 This is a personal passion project of mine.
 
+---
+## Loading Screen
+![Recording 2026-01-12 at 23 41 37](https://github.com/user-attachments/assets/409f8347-e099-4562-93c6-8f19ac6a708e)
+*Preview Mesh computation - 1.1s (delay is frame generation time)*
+
+## Examples
 ![Recording 2026-01-08 at 13 27 08](https://github.com/user-attachments/assets/344589aa-08c4-428c-85fd-9b129692bbfb)
 *Model Morph from brain model to hand model. Computed at resolution = 100 with a time of 6.5s and TARGET_FACES = 5000.*
 
