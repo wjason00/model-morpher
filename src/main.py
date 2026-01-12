@@ -126,8 +126,8 @@ class Loader(QtWidgets.QMainWindow):
         try:
             self.bga_atlas = BrainGlobeAtlas(atlas, check_latest = False)
 
-            # df is [id, acronym, name] 
-            self.bga_structures_df = self.bga_atlas.lookup_df 
+            # Utilise Pandas DataFrame for relevant columns
+            self.bga_structures_df = self.bga_atlas.lookup_df[["acronym", "name"]].copy()
         
         except Exception as e:
             self.status_label.setText(f"Error loading atlas {atlas}: {str(e)}")
@@ -138,32 +138,49 @@ class Loader(QtWidgets.QMainWindow):
             self.bga_add_button.setEnabled(False)
             return
 
-        # Add all structures to the list
-        self.bga_region_list.clear()
-
-        for _, row in self.bga_structures_df.iterrows():
-            acro = row["acronym"]
-            name = row["name"] 
-
-            item = QtWidgets.QListWidgetItem(f"{acro} - {name}")
-            item.setData(QtCore.Qt.UserRole, acro)
-            self.bga_region_list.addItem(item)
+        
+        self._refresh_region_list(self.bga_structures_df)
+        self.bga_add_button.setEnabled(True)
 
         self.status_label.setText(f"Status: Atlas {atlas} loaded.")
-        self.bga_add_button.setEnabled(True)
 
     def _filter_bga_regions(self, text): 
         """
-        Detect based on search box input
+        Detect based on search box input by checking if the message is contained within.
         
         :param self: Description
         :param text: Description
         """
-        text = text.lower()
-        for i in range(self.bga_region_list.count()):
-            item = self.bga_region_list.item(i)
-            item_text = item.text().lower()
-            item.setHidden(text not in item_text)
+        if self.bga_structures_df is None:
+            return 
+        
+        text = text.strip().lower() 
+
+        if not text:
+            filtered_df = self.bga_structures_df
+        else: 
+            mask = (
+                self.bga_structures_df['acronym'].str.lower().str.contains(text) |
+                self.bga_structures_df['name'].str.lower().str.contains(text)
+            )
+            filtered_df = self.bga_structures_df[mask]
+        
+        self._refresh_region_list(filtered_df)
+    
+    def _refresh_region_list(self, df):
+        """
+        Refresh the region list based on the provided DataFrame.
+        
+        :param self: Description
+        :param df: Description
+        """
+
+        self.bga_region_list.clear()
+
+        for _, row in df.iterrows():
+            item = QtWidgets.QListWidgetItem(f"{row['acronym']} - {row['name']}")
+            item.setData(QtCore.Qt.UserRole, row['acronym'])
+            self.bga_region_list.addItem(item)
 
     def _add_bga_structures(self):
         """
@@ -191,15 +208,11 @@ class Loader(QtWidgets.QMainWindow):
 
         # If any meshes were successfully added   
         if i: 
-            self.status_label.setText(f"Added {i} structures from atlas.")
+            self.status_label.setText(f"Added {i} structures from atlas. Total meshes: {len(self.mesh_paths)}")
 
             # Allow to run when more than 2 meshes are loaded. 
             if len(self.mesh_paths) >= 2:
                 self.run_button.setEnabled(True)
-
-        self.status_label.setText(f"Status: {len(self.mesh_paths)} meshes loaded")
-        if len(self.mesh_paths) >= 2: 
-            self.run_button.setEnabled(True)
 
 
     # Scene Handling 
