@@ -1,6 +1,7 @@
 import sys 
 import numpy 
 import pyvista as pv
+import pandas as pd
 
 from pyvistaqt import QtInteractor 
 from PyQt5 import QtWidgets, QtCore 
@@ -16,6 +17,9 @@ from viewer import ScrollViewer
 class Loader(QtWidgets.QMainWindow): 
     """
     Loader for enabling file selection as well as 3D loading animation. 
+
+    Brainglobe Atlas implementation is sandwiched in the loader for structure selection.
+    3D morphing is handled in a separate thread to prevent UI blocking.
     """
 
     def __init__(self): 
@@ -74,12 +78,128 @@ class Loader(QtWidgets.QMainWindow):
         bga_layout.addStretch(1)
         vert_layout.addWidget(self.bga_region_list, stretch = 1)
 
+        # Init BrainGlobe Atlas 
+
+        self.bga_atlas = None 
+        self.bga_structures_df = None 
+
+        self._init_bga_atlases() 
+        self.bga_atlas_combo.currentIndexChanged.connect(self._on_bga_atlas_change)
+        self.bga_region_search.textChanged.connect(self._filter_bga_regions)
+        self.bga_add_button.clicked.connect(self._add_bga_structures)
+
         self.plotter = QtInteractor(self) 
         vert_layout.addWidget(self.plotter.interactor)
 
         self._show_idle()
         self.load_button.clicked.connect(self.add_mesh_file)
         self.run_button.clicked.connect(self.run_morphing)
+
+    def _init_bga_atlases(self): 
+        """
+        Initialize BrainGlobe Atlas selection dropdown.
+        
+        :param self: Description
+        """
+
+        self.bga_atlas_combo.addItem("allen_mouse_25um")
+        self.bga_atlas_combo.addItem("mpin_zfish_1um")
+
+        self._on_bga_atlas_change(0)  # Load the first atlas by default
+
+    def _on_bga_atlas_change(self, index):
+        """
+        Handle atlas change event.
+        
+        :param self: Description
+        :param index: Selected index
+        """
+
+        atlas = self.bga_atlas_combo.currentText()
+
+        if not atlas:
+            return 
+        
+        self.status_label.setText(f"Status: Loading atlas {atlas}...")
+        QtWidgets.QApplication.processEvents()
+
+        try:
+            self.bga_atlas = BrainGlobeAtlas(atlas, check_latest = False)
+
+            # df is [id, acronym, name] 
+            self.bga_structures_df = self.bga_atlas.lookup_df 
+        
+        except Exception as e:
+            self.status_label.setText(f"Error loading atlas {atlas}: {str(e)}")
+            self.bga_atlas = None 
+            self.bga_structures_df = None 
+
+            self.bga_region_list.clear()
+            self.bga_add_button.setEnabled(False)
+            return
+
+        # Add all structures to the list
+        self.bga_region_list.clear()
+
+        for _, row in self.bga_structures_df.iterrows():
+            acro = row["acronym"]
+            name = row["name"] 
+
+            item = QtWidgets.QListWidgetItem(f"{acro} - {name}")
+            item.setData(QtCore.Qt.UserRole, acro)
+            self.bga_region_list.addItem(item)
+
+        self.status_label.setText(f"Status: Atlas {atlas} loaded.")
+        self.bga_add_button.setEnabled(True)
+
+    def _filter_bga_regions(self, text): 
+        """
+        Detect based on search box input
+        
+        :param self: Description
+        :param text: Description
+        """
+        text = text.lower()
+        for i in range(self.bga_region_list.count()):
+            item = self.bga_region_list.item(i)
+            item_text = item.text().lower()
+            item.setHidden(text not in item_text)
+
+    def _add_bga_structures(self):
+        """
+        Add selected structures from BrainGlobe Atlas to mesh paths.
+        
+        :param self: Description
+        """
+
+        if not self.bga_atlas:
+            return 
+        
+        selected_items = self.bga_region_list.selectedItems()
+        if not selected_items:
+            return 
+        
+        i = 0
+        for item in selected_items:
+            acro = item.data(QtCore.Qt.UserRole)
+            try:
+                mesh_path = str(self.bga_atlas.meshfile_from_structure(acro))
+                self.mesh_paths.append(mesh_path)
+                i += 1
+            except Exception as e:
+                self.status_label.setText(f"Error loading structure {acro}: {str(e)}")
+
+        # If any meshes were successfully added   
+        if i: 
+            self.status_label.setText(f"Added {i} structures from atlas.")
+
+            # Allow to run when more than 2 meshes are loaded. 
+            if len(self.mesh_paths) >= 2:
+                self.run_button.setEnabled(True)
+
+        self.status_label.setText(f"Status: {len(self.mesh_paths)} meshes loaded")
+        if len(self.mesh_paths) >= 2: 
+            self.run_button.setEnabled(True)
 
 
     # Scene Handling 
@@ -231,6 +351,7 @@ class Loader(QtWidgets.QMainWindow):
 
         if len(self.mesh_paths) >= 2:
             self.run_button.setEnabled(True)
+
 
     
 class Morpher(QtCore.QThread):
