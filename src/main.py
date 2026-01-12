@@ -8,7 +8,7 @@ from PyQt5 import QtWidgets, QtCore
 from random import randint
 
 from brainglobe_atlasapi import BrainGlobeAtlas
-from constants import TARGET_FACES, RESOLUTION, FRAME_COUNT
+from constants import PREVIEW_RES, PREVIEW_FRAMES, TARGET_FACES, RESOLUTION, FRAME_COUNT
 from mesh_tools import load_and_clean_mesh, pyvista_to_trimesh, repair_mesh, normalise_meshes
 from sdf_tools import morph_mesh_sequence
 from viewer import ScrollViewer
@@ -91,9 +91,10 @@ class Loader(QtWidgets.QMainWindow):
         self.plotter = QtInteractor(self) 
         vert_layout.addWidget(self.plotter.interactor)
 
-        self._show_idle()
+        self._show_loading()
         self.load_button.clicked.connect(self.add_mesh_file)
         self.run_button.clicked.connect(self.run_morphing)
+
 
     def _init_bga_atlases(self): 
         """
@@ -106,6 +107,7 @@ class Loader(QtWidgets.QMainWindow):
         self.bga_atlas_combo.addItem("mpin_zfish_1um")
 
         self._on_bga_atlas_change(0)  # Load the first atlas by default
+
 
     def _on_bga_atlas_change(self, index):
         """
@@ -144,6 +146,7 @@ class Loader(QtWidgets.QMainWindow):
 
         self.status_label.setText(f"Status: Atlas {atlas} loaded.")
 
+
     def _filter_bga_regions(self, text): 
         """
         Detect based on search box input by checking if the message is contained within.
@@ -167,6 +170,7 @@ class Loader(QtWidgets.QMainWindow):
         
         self._refresh_region_list(filtered_df)
     
+
     def _refresh_region_list(self, df):
         """
         Refresh the region list based on the provided DataFrame.
@@ -181,6 +185,7 @@ class Loader(QtWidgets.QMainWindow):
             item = QtWidgets.QListWidgetItem(f"{row['acronym']} - {row['name']}")
             item.setData(QtCore.Qt.UserRole, row['acronym'])
             self.bga_region_list.addItem(item)
+
 
     def _add_bga_structures(self):
         """
@@ -215,30 +220,6 @@ class Loader(QtWidgets.QMainWindow):
                 self.run_button.setEnabled(True)
 
 
-    # Scene Handling 
-    def _show_idle(self): 
-        """
-        Handling the idle scene while no meshes are selected. 
-        
-        :param self: Description
-        """
-
-        self.plotter.clear()
-        self.plotter.add_text("Idle - Load meshes to begin",
-                              position = "upper_left",
-                              font_size = 12
-                    )
-                                         
-
-        sphere = pv.Sphere(radius = 1.0).points
-        self.plotter.add_mesh(sphere, 
-                              color = 'lightblue', 
-                              point_size = 5, 
-                              render_points_as_spheres = True
-                    )      
-
-        self.plotter.reset_camera() 
-
     def _show_loading(self): 
         """
         3d loading animation while the SDF and morph frames are calculated
@@ -259,6 +240,7 @@ class Loader(QtWidgets.QMainWindow):
         self.loading_timer = QtCore.QTimer()
         self.loading_timer.timeout.connect(self._rotate_loading)
         self.loading_timer.start(35)  # Rotate every 35 ms
+
 
     def _rotate_loading(self):
         """
@@ -300,7 +282,7 @@ class Loader(QtWidgets.QMainWindow):
                 if len(self.mesh_paths) >= 2: 
                     self.run_button.setEnabled(True)
 
-    
+    # Morphing handling
     def run_morphing(self): 
         """
         Run the morphing process after meshes are loaded.
@@ -308,47 +290,87 @@ class Loader(QtWidgets.QMainWindow):
         :param self: Description
         """
         if not self.mesh_paths:
+            self.status_label.setText("No meshes loaded to morph.")
             return 
         
         # Preventing repeated events
-        self.status_label.setText("Loading meshes.")
+        self.status_label.setText("Status: Generating Preview Morph...")
         self.run_button.setEnabled(False)
         self.load_button.setEnabled(False)
         
-        self._show_loading()
+        # Generating Preview
+        self.preview_worker = Morpher(
+            self.mesh_paths, 
+            target_faces = TARGET_FACES,
+            resolution = PREVIEW_RES,
+            frames_per_transition = PREVIEW_FRAMES,
+            mode = "preview"
+        )
 
-        self.worker = Morpher(
-           self.mesh_paths,
-           target_faces = TARGET_FACES,
-           resolution = RESOLUTION, 
-           frames_per_transition = FRAME_COUNT
-            )
-    
-        self.worker.success.connect(self._on_morph_success)
-        self.worker.error.connect(self._on_morph_error)
-        self.worker.start()
-    
+        self.preview_worker.success.connect(self._on_morph_success)
+        self.preview_worker.error.connect(self._on_morph_error)
+        self.preview_worker.start()
 
-    def _on_morph_success(self, morph_frames):
+    
+    def _on_morph_success(self, mode, morph_frames):
         """
         Handle successful morphing completion.
         """
 
-        try:
-            self.loading_timer.stop()
-        except Exception:
-            pass 
+        if mode == "preview":
+            # Preview Frame Generation
+            self.morph_frames = morph_frames 
+            self.current_frame_idx = 0
 
-        # Close the loader and clean the worker thread 
-        self.worker = None
-        self.close() 
+            self.plotter.clear()
 
-        # Reusing old viewer (PyVista) for general handling of the mesh sequencing.
-        viewer = ScrollViewer(morph_frames)
-        viewer.show() 
+            if self.morph_frames:
+                self.actor = self.plotter.add_mesh(
+                    self.morph_frames[0].points,
+                    color = 'lightblue',
+                    show_edges = True,
+                    opacity = 1.0
+                )
+
+                self.plotter.reset_camera()
+
+                self.status_label.setText("Status: Preview Morph Generated. Running Full Morph...")
+
+                # Automatic playback of preview 
+
+                if not hasattr(self, "playback_timer"):
+                    self.playback_timer = QtCore.QTimer()
+                    self.playback_timer.timeout.connect(self._update_preview_frame)
+                self.playback_timer.start(100)  # Update every 100 ms
+
+                # Generation of full morph after preview
+                self.worker = Morpher(
+                    self.mesh_paths,
+                    target_faces = TARGET_FACES,
+                    resolution = RESOLUTION,
+                    frames_per_transition = FRAME_COUNT,
+                    mode = "full"
+                )
+
+                self.worker.success.connect(self._on_morph_success)
+                self.worker.error.connect(self._on_morph_error)
+                self.worker.finished.connect(self._on_worker_finished)
+                self.worker.start()
+
+                self.preview_worker = None
+
+        else: # Full morph replace
+            if hasattr(self, "playback_timer"):
+                self.playback_timer.stop()
+
+            self.viewer = ScrollViewer(morph_frames)
+            self.viewer.show()
+
+            # Loader window closed. 
+            self.close()
 
 
-    def _on_morph_error(self, error_msg):
+    def _on_morph_error(self, mode, error_msg):
         """
         Handle morphing errors.
         """
@@ -358,12 +380,79 @@ class Loader(QtWidgets.QMainWindow):
         except Exception:
             pass 
 
-        self._show_idle()
-        self.status_label.setText(f"Error during morphing: {error_msg}")
-        self.load_button.setEnabled(True)
+        if mode == "preview":
+           # If preview fails, try going straight to full morph
+            self.status_label.setText(f"Preview error, computing full morph: {error_msg}")
+            
+            # Clean up preview worker
+            self.preview_worker = None
+            
+            self.worker = Morpher(
+                self.mesh_paths,
+                target_faces=TARGET_FACES,
+                resolution=RESOLUTION,
+                frames_per_transition=FRAME_COUNT,
+                mode="full"
+            )
+            self.worker.success.connect(self._on_morph_success)
+            self.worker.error.connect(self._on_morph_error)
+            self.worker.finished.connect(self._on_worker_finished)
+            self.worker.start() 
 
-        if len(self.mesh_paths) >= 2:
-            self.run_button.setEnabled(True)
+        else:
+            self.plotter.clear()
+            self._show_loading()  # Show loading screen again
+            self.status_label.setText(f"Error during morphing: {error_msg}")
+            self.load_button.setEnabled(True)
+            if len(self.mesh_paths) >= 2:
+                self.run_button.setEnabled(True)
+
+    def _on_worker_finished(self):
+        """
+        Handle worker thread completion.
+        """
+
+        self.worker = None
+
+    def _update_preview_frame(self):
+        """
+        Update the preview frame during playback.
+        """
+
+        if not self.morph_frames or self.actor is None:
+            return 
+        
+        self.current_frame_idx = (self.current_frame_idx + 1) % len(self.morph_frames)
+        current_frame = self.morph_frames[self.current_frame_idx]
+        self.actor.GetMapper().SetInputData(current_frame)
+        self.plotter.render()
+        
+
+    def closeEvent(self, event):
+        """
+        Ensure background threads are stopped before closing the window.
+        """
+        try:
+            if hasattr(self, "playback_timer") and self.playback_timer:
+                self.playback_timer.stop()
+        except Exception:
+            pass
+
+        try:
+            if hasattr(self, "preview_worker") and self.preview_worker and self.preview_worker.isRunning():
+                self.preview_worker.quit()
+                self.preview_worker.wait()
+        except Exception:
+            pass
+
+        try:
+            if self.worker and self.worker.isRunning():
+                self.worker.quit()
+                self.worker.wait()
+        except Exception:
+            pass
+
+        event.accept()
 
 
     
@@ -372,16 +461,18 @@ class Morpher(QtCore.QThread):
     Docstring for Morpher
     """
 
-    success = QtCore.pyqtSignal(list)
-    error = QtCore.pyqtSignal(str)
+    # Mode, Frames
+    success = QtCore.pyqtSignal(str, list)
+    error = QtCore.pyqtSignal(str, str) # Mode, Err Message
 
     
-    def __init__(self, mesh_paths, target_faces, resolution, frames_per_transition, parent = None):
+    def __init__(self, mesh_paths, target_faces, resolution, frames_per_transition, mode = "full", parent = None):
         super().__init__(parent)
         self.mesh_paths = mesh_paths
         self.target_faces = target_faces
         self.resolution = resolution
         self.frames_per_transition = frames_per_transition
+        self.mode = mode 
 
 
     def run(self):
@@ -404,16 +495,16 @@ class Morpher(QtCore.QThread):
                 frames_per_transition= self.frames_per_transition
             )
 
-            self.success.emit(morph_frames)
+            self.success.emit(self.mode, morph_frames)
 
         except Exception as e:
-            self.error.emit(str(e))
+            self.error.emit(self.mode, str(e))
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
     loader = Loader()
     loader.show()
-    loader._show_idle()
+    loader._show_loading()
     sys.exit(app.exec_())
 
 if __name__ == "__main__":

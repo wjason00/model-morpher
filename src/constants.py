@@ -1,5 +1,10 @@
 # Main.py
 
+# Loading settings
+PREVIEW_RES = 50
+PREVIEW_FRAMES = 10
+
+# Quality Ver
 RESOLUTION = 150 # Resolution increases cost cubically (meshgrid)
 FRAME_COUNT = 20
 TARGET_FACES = 15000 # Number of faces after decimating the mesh.
