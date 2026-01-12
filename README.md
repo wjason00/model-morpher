@@ -115,10 +115,12 @@ num_frames = 20      # Number of frames to generate
 ## Project Structure
 
 ```
+
 model-morpher/
 ├── requirements.txt          # Python dependencies
 ├── .gitignore
 ├── src/
+│   ├── constants.py          # Store all constants sep. by file.
 │   ├── main.py
 │   ├── mesh_tools.py         # Mesh handling functions
 │   ├── sdf_tools.py          # SDF computation, marching cubes and frame generation
@@ -148,9 +150,11 @@ Generally aiming to produce a stable Python-only version before considering othe
 - [ ] GPU-accelerated SDF computation (In process - however really hard to understand correct packages / dependencies for PyTorch3D and PyTorch)
 - [X] Batch processing capabilities (Accomplished for CPU only) 
 - [ ] Animation export (video/GIF formats)
-- [ ] File insertion via GUI for high-level mesh morphing.
+- [X] File insertion via GUI for high-level mesh morphing.
 - [ ] Convert into a deployable and stable package.
 - [X] Increase the number of meshes that are able to be morphed. (For however many meshes you want)
+- [X] Loading Screen
+- [ ] Textures implemented.
 
 ## License
 

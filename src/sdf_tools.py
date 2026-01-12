@@ -4,6 +4,7 @@ import numpy as np
 import cupy as cp
 import pyvista as pv
 
+from constants import PADDING, TOLERANCE, SMOOTH_ITER, RELAX_FACTOR
 from mesh_to_sdf import mesh_to_sdf
 from skimage import measure
 from time import time
@@ -88,7 +89,7 @@ def create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, frames
             morph_mesh = pv.PolyData(verts, faces_pv) # Intermediate mesh is created here.
             
             # Clean and repair the marching cubes output
-            morph_mesh = morph_mesh.clean(tolerance=1e-6)  # Merge very close vertices
+            morph_mesh = morph_mesh.clean(tolerance=TOLERANCE)  # Merge very close vertices
             
             # Fill holes aggressively - use large hole_size to catch bigger gaps
             try:
@@ -98,7 +99,7 @@ def create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, frames
             
             # Smooth the mesh slightly to reduce jagged artifacts from marching cubes
             try:
-                morph_mesh = morph_mesh.smooth(n_iter=20, relaxation_factor=0.1)
+                morph_mesh = morph_mesh.smooth(n_iter=SMOOTH_ITER, relaxation_factor=RELAX_FACTOR)
             except:
                 pass
 
@@ -219,8 +220,8 @@ def morph_mesh_sequence(trimeshes, resolution=64, frames_per_transition=20):
     print(f"{'='*50}")
     
     # Compute global bounding box that encompasses ALL meshes
-    all_min_bounds = np.min([mesh.bounds[0] for mesh in trimeshes], axis=0) - 0.1
-    all_max_bounds = np.max([mesh.bounds[1] for mesh in trimeshes], axis=0) + 0.1
+    all_min_bounds = np.min([mesh.bounds[0] for mesh in trimeshes], axis=0) - PADDING
+    all_max_bounds = np.max([mesh.bounds[1] for mesh in trimeshes], axis=0) + PADDING
     
     # Generate the shared grid for all meshes
     x = np.linspace(all_min_bounds[0], all_max_bounds[0], resolution)

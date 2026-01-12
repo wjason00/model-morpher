@@ -4,7 +4,7 @@ import trimesh
 
 from os import path
 
-def load_and_clean_mesh(file_path, target_faces = 5000, hole_size = 10000): 
+def load_and_clean_mesh(file_path, target_faces = 15000, hole_size = 10000): 
     """
     General loading of an STL file into a cleaned PyVista mesh.    
     
