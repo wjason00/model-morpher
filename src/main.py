@@ -6,6 +6,7 @@ from pyvistaqt import QtInteractor
 from PyQt5 import QtWidgets, QtCore 
 from random import randint
 
+from brainglobe_atlasapi import BrainGlobeAtlas
 from constants import TARGET_FACES, RESOLUTION, FRAME_COUNT
 from mesh_tools import load_and_clean_mesh, pyvista_to_trimesh, repair_mesh, normalise_meshes
 from sdf_tools import morph_mesh_sequence
@@ -50,6 +51,28 @@ class Loader(QtWidgets.QMainWindow):
         controls.addWidget(self.run_button)
         controls.addWidget(self.status_label)
         controls.addStretch(1)
+
+        bga_layout = QtWidgets.QHBoxLayout()
+        vert_layout.addLayout(bga_layout)
+
+        # Boiler for BrainGlobe Atlas Selection
+        self.bga_altas_label = QtWidgets.QLabel("Atlas :")
+        self.bga_atlas_combo = QtWidgets.QComboBox()
+        self.bga_region_search = QtWidgets.QLineEdit()
+        self.bga_region_search.setPlaceholderText("Search Structure...")
+
+        self.bga_region_list = QtWidgets.QListWidget()
+        self.bga_region_list.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.bga_add_button = QtWidgets.QPushButton("Add Selected Structures")
+        self.bga_add_button.setEnabled(False)
+
+        bga_layout.addWidget(self.bga_altas_label)
+        bga_layout.addWidget(self.bga_atlas_combo)
+        bga_layout.addWidget(self.bga_region_search)
+        bga_layout.addWidget(self.bga_add_button)
+
+        bga_layout.addStretch(1)
+        vert_layout.addWidget(self.bga_region_list, stretch = 1)
 
         self.plotter = QtInteractor(self) 
         vert_layout.addWidget(self.plotter.interactor)
@@ -183,14 +206,13 @@ class Loader(QtWidgets.QMainWindow):
         except Exception:
             pass 
 
-        # Reusing old viewer (PyVista) for general handling of the mesh sequencing.
-        viewer = ScrollViewer(morph_frames)
-        viewer.show() 
-
-
         # Close the loader and clean the worker thread 
         self.worker = None
         self.close() 
+
+        # Reusing old viewer (PyVista) for general handling of the mesh sequencing.
+        viewer = ScrollViewer(morph_frames)
+        viewer.show() 
 
 
     def _on_morph_error(self, error_msg):
