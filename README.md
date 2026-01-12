@@ -104,7 +104,7 @@ python main.py
 
 ## Configuration
 
-Parameters in `main.py`:
+Parameters in `constants.py`:
 
 ```python
 TARGET_FACES = 5000  # Target faces after decimation (lower means more aggressive removal of faces)
