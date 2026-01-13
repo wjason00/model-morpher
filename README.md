@@ -73,6 +73,10 @@ $$\text{SDF}_{\text{morph}}(t) = (1-t) \times \text{SDF}_A + t \times \text{SDF}
 
 ## Setup
 
+If attempting to install PyTorch3D - good idea to check out: 
+
+https://github.com/MiroPsota/torch_packages_builder/issues/10 (helped me install) 
+
 ### Option 1: Conda (Recommended)
 
 ```bash
