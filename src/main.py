@@ -1,5 +1,10 @@
+import os 
+# Ignore KMP duplicate warnings
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"  # To prevent macOS crashes due to libomp
+
 import sys 
-import numpy 
+import numpy as np 
+import torch
 import pyvista as pv
 import pandas as pd
 
@@ -10,7 +15,8 @@ from random import randint
 from brainglobe_atlasapi import BrainGlobeAtlas
 from constants import PREVIEW_RES, PREVIEW_FRAMES, TARGET_FACES, RESOLUTION, FRAME_COUNT
 from mesh_tools import load_and_clean_mesh, pyvista_to_trimesh, repair_mesh, normalise_meshes
-from sdf_tools import morph_mesh_sequence
+from sdf_tools_cpu import morph_mesh_sequence
+from sdf_tools_gpu import morph_mesh_sequence_torch
 from viewer import ScrollViewer
 
 
@@ -318,30 +324,38 @@ class Loader(QtWidgets.QMainWindow):
         """
 
         if mode == "preview":
+            if hasattr(self, "loading_timer") and self.loading_timer:
+                self.loading_timer.stop()
+                self.loading_timer = None
+
             # Preview Frame Generation
             self.morph_frames = morph_frames 
             self.current_frame_idx = 0
 
+            # Ensure that the entire plot is clearer
             self.plotter.clear()
+            self.leading_actor = None 
 
             if self.morph_frames:
+
+                # First frame 
                 self.actor = self.plotter.add_mesh(
-                    self.morph_frames[0].points,
+                    self.morph_frames[0],
                     color = 'lightblue',
                     show_edges = True,
                     opacity = 1.0
                 )
 
                 self.plotter.reset_camera()
-
-                self.status_label.setText("Status: Preview Morph Generated. Running Full Morph...")
+                self.plotter.render() # Initial Render
 
                 # Automatic playback of preview 
-
                 if not hasattr(self, "playback_timer"):
                     self.playback_timer = QtCore.QTimer()
                     self.playback_timer.timeout.connect(self._update_preview_frame)
                 self.playback_timer.start(100)  # Update every 100 ms
+
+                self.status_label.setText("Preview Morph Generated. Computing Full Morph...")
 
                 # Generation of full morph after preview
                 self.worker = Morpher(
@@ -357,11 +371,17 @@ class Loader(QtWidgets.QMainWindow):
                 self.worker.finished.connect(self._on_worker_finished)
                 self.worker.start()
 
+                # Clean up Preview Worker ref
                 self.preview_worker = None
 
         else: # Full morph replace
-            if hasattr(self, "playback_timer"):
+            if hasattr(self, "playback_timer") and self.playback_timer:
                 self.playback_timer.stop()
+                self.playback_timer = None
+
+            if hasattr(self, "loading_timer") and self.loading_timer: 
+                self.loading_timer.stop()
+                self.loading_timer = None
 
             self.viewer = ScrollViewer(morph_frames)
             self.viewer.show()
@@ -403,6 +423,7 @@ class Loader(QtWidgets.QMainWindow):
             self.plotter.clear()
             self._show_loading()  # Show loading screen again
             self.status_label.setText(f"Error during morphing: {error_msg}")
+            print(error_msg)
             self.load_button.setEnabled(True)
             if len(self.mesh_paths) >= 2:
                 self.run_button.setEnabled(True)
@@ -476,10 +497,16 @@ class Morpher(QtCore.QThread):
 
 
     def run(self):
+        """
+        Docstring for run
+        
+        :param self: Description
+        """
         try: 
             # Load and prepare all the meshes
             trimeshes = [] 
-            for i, source in enumerate(self.mesh_paths):
+
+            for source in self.mesh_paths:
                 pv_mesh = load_and_clean_mesh(source, target_faces=self.target_faces)
                 tri_mesh = pyvista_to_trimesh(pv_mesh)
                 repair_mesh(tri_mesh)
@@ -488,17 +515,35 @@ class Morpher(QtCore.QThread):
             # Normalising is just when the meshes are centered and scaled to make SDF computation easier
             trimeshes = normalise_meshes(trimeshes)
 
-            # Generate the frames after all the big preprocessing is confirmed
-            morph_frames = morph_mesh_sequence(
-                trimeshes,
-                resolution = self.resolution,
-                frames_per_transition= self.frames_per_transition
-            )
+            # Step 3: Verify normalization
+            for i, mesh in enumerate(trimeshes):
+                diag = np.linalg.norm(mesh.bounds[1] - mesh.bounds[0])
+                print(f"  Mesh {i+1}: diagonal={diag:.2f}, center={mesh.centroid}")
+                
+            # GPU 
+            if torch.cuda.is_available():
+                morph_frames = morph_mesh_sequence_torch(
+                    trimeshes=trimeshes,
+                    resolution=self.resolution,
+                    frames_per_transition=self.frames_per_transition,
+                    device="cuda"
+                )
+
+            # CPU
+            else:
+                # Generate the frames after all the big preprocessing is confirmed
+                morph_frames = morph_mesh_sequence(
+                    trimeshes,
+                    resolution = self.resolution,
+                    frames_per_transition= self.frames_per_transition
+                )
 
             self.success.emit(self.mode, morph_frames)
 
         except Exception as e:
             self.error.emit(self.mode, str(e))
+
+
 
 def main():
     app = QtWidgets.QApplication(sys.argv)

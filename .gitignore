@@ -54,3 +54,7 @@ tutorial\
 # Sphinx documentation
 docs/_build/
 *.vscode/
+
+# Cache
+
+*.pkl

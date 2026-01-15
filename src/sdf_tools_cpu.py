@@ -1,10 +1,6 @@
-import multiprocessing
-
 import numpy as np
-import cupy as cp
 import pyvista as pv
 
-from constants import PADDING, TOLERANCE, SMOOTH_ITER, RELAX_FACTOR
 from mesh_to_sdf import mesh_to_sdf
 from skimage import measure
 from time import time
@@ -44,6 +40,46 @@ def compute_sdf_worker(args):
     return compute_sdf(mesh_tri, query_points, resolution)
 
 
+def extract_isosurface_cpu(sdf, min_bounds, max_bounds, resolution, level = 0.0):  
+    verts, faces, normals, values = measure.marching_cubes(
+        sdf, 
+        level=level,
+        spacing=(
+            (max_bounds[0] - min_bounds[0]) / (resolution - 1),
+            (max_bounds[1] - min_bounds[1]) / (resolution - 1),
+            (max_bounds[2] - min_bounds[2]) / (resolution - 1)
+        ), # x, y, z spacing
+        allow_degenerate=False  # Reject degenerate triangles that cause artifacts
+    )
+
+    # Accounts for mesh offset due to the bounding box and offsets by such.
+    verts += min_bounds
+
+    # Create PyVista mesh by accounting for the marching cubes output of verts (V, 3) and faces (F, 3). 
+    # Faces results in an integer array representing the vertex indices for each triangle formed. 
+    # PyVista mesh requires faces to be formatted as [3, i, j, k, 3, 3, i, j, k, ...] (essentially a repeating 1D array).
+    # (I have absolutely no idea how to recreate this icl) (remember pv stands for pyvista please)
+    faces_pv = np.hstack([np.full((len(faces), 1), 3), faces]).ravel()
+    morph_mesh = pv.PolyData(verts, faces_pv) # Intermediate mesh is created here.
+    
+    # Clean and repair the marching cubes output
+    morph_mesh = morph_mesh.clean(tolerance=TOLERANCE)  # Merge very close vertices
+    
+    # Fill holes aggressively - use large hole_size to catch bigger gaps
+    try:
+        morph_mesh = morph_mesh.fill_holes(hole_size=1000)
+    except:
+        pass
+    
+    # Smooth the mesh slightly to reduce jagged artifacts from marching cubes
+    try:
+        morph_mesh = morph_mesh.smooth(n_iter=SMOOTH_ITER, relaxation_factor=RELAX_FACTOR)
+    except:
+        pass
+
+    return morph_mesh
+
+
 def create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, frames=20):
     """
     Generate frames of morphed meshes via interpolation between two SDFs via marching cubes.
@@ -64,44 +100,13 @@ def create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, frames
         sdf_interp = (1 - t) * sdf_a + t * sdf_b
 
         try:
-            # Utilise marching cubes to create triangles where the SDF is zero (isosurface extraction)
-            # Using level=0.0 for true surface; negative values (previously was -0.01 can cause weird artifacting)
-            level = 0.0
-            verts, faces, normals, values = measure.marching_cubes(
-                sdf_interp, 
-                level=level,
-                spacing=(
-                    (max_bounds[0] - min_bounds[0]) / (resolution - 1),
-                    (max_bounds[1] - min_bounds[1]) / (resolution - 1),
-                    (max_bounds[2] - min_bounds[2]) / (resolution - 1)
-                ), # x, y, z spacing
-                allow_degenerate=False  # Reject degenerate triangles that cause artifacts
+            morph_mesh = extract_isosurface_cpu(
+                sdf_interp,
+                min_bounds,
+                max_bounds,
+                resolution,
+                level=0.0
             )
-
-            # Accounts for mesh offset due to the bounding box and offsets by such.
-            verts += min_bounds
-
-            # Create PyVista mesh by accounting for the marching cubes output of verts (V, 3) and faces (F, 3). 
-            # Faces results in an integer array representing the vertex indices for each triangle formed. 
-            # PyVista mesh requires faces to be formatted as [3, i, j, k, 3, 3, i, j, k, ...] (essentially a repeating 1D array).
-            # (I have absolutely no idea how to recreate this icl) (remember pv stands for pyvista please)
-            faces_pv = np.hstack([np.full((len(faces), 1), 3), faces]).ravel()
-            morph_mesh = pv.PolyData(verts, faces_pv) # Intermediate mesh is created here.
-            
-            # Clean and repair the marching cubes output
-            morph_mesh = morph_mesh.clean(tolerance=TOLERANCE)  # Merge very close vertices
-            
-            # Fill holes aggressively - use large hole_size to catch bigger gaps
-            try:
-                morph_mesh = morph_mesh.fill_holes(hole_size=1000)
-            except:
-                pass
-            
-            # Smooth the mesh slightly to reduce jagged artifacts from marching cubes
-            try:
-                morph_mesh = morph_mesh.smooth(n_iter=SMOOTH_ITER, relaxation_factor=RELAX_FACTOR)
-            except:
-                pass
 
             morph_frames.append(morph_mesh)
             # print(f"Mesh has {len(verts)} vertices, {len(faces)} faces")
@@ -120,6 +125,7 @@ def create_morph_frames(sdf_a, sdf_b, min_bounds, max_bounds, resolution, frames
 
 def create_morph_frames_worker(args):
     return create_morph_frames(*args)
+
 
 def morph_meshes(trimeshes, resolution=64, num_frames=20):
     """

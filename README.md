@@ -75,7 +75,7 @@ $$\text{SDF}_{\text{morph}}(t) = (1-t) \times \text{SDF}_A + t \times \text{SDF}
 
 If attempting to install PyTorch3D - good idea to check out: 
 
-https://github.com/MiroPsota/torch_packages_builder/issues/10 (helped me install) 
+<https://github.com/MiroPsota/torch_packages_builder/issues/10> (helped me install)
 
 ### Option 1: Conda (Recommended)
 
@@ -114,7 +114,7 @@ python main.py
 
 ## Configuration
 
-Parameters in `constants.py`:
+Parameters in `config.py`:
 
 ```python
 TARGET_FACES = 5000  # Target faces after decimation (lower means more aggressive removal of faces)
@@ -130,10 +130,10 @@ model-morpher/
 ├── requirements.txt          # Python dependencies
 ├── .gitignore
 ├── src/
-│   ├── constants.py          # Store all constants sep. by file.
+│   ├── config.py             # Store all constants sep. by file.
 │   ├── main.py
 │   ├── mesh_tools.py         # Mesh handling functions
-│   ├── sdf_tools.py          # SDF computation, marching cubes and frame generation
+│   ├── sdf_tools_gpu.py      # GPU ray tracing + GPU SDF from PyTorch3D and etc.
 │   └── viewer.py             # Interactive 3D viewer
 └── test_models/
     ├── halfpoly_suzanne.stl  # https://www.thingiverse.com/thing:2522740

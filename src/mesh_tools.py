@@ -89,12 +89,13 @@ def normalise_meshes(meshes):
     
     :param meshes: List of trimesh objects to normalise
     """
+    # Calculating reference diagonal before offsetting
+    reference_diag = np.linalg.norm(meshes[0].bounds[1] - meshes[0].bounds[0])
+    diags = [np.linalg.norm(mesh.bounds[1] - mesh.bounds[0]) for mesh in meshes]
 
     # Offsetting each meshs' vertices by its centre to appear at world space origin. (just think like voxel origin being at [3, 2, 1] would have to be offset by [-3, -2, -1])
     for mesh in meshes: 
         mesh.vertices -= mesh.centroid 
-
-    reference_diag = np.linalg.norm(meshes[0].bounds[1] - meshes[0].bounds[0])
 
     # Start from the first mesh and scale all others relative to it. 
     # Simple volume scale factor formula i.e. big / small = scale then multiply the small one. 
@@ -102,7 +103,7 @@ def normalise_meshes(meshes):
         # Calculate the normal of the diagonal to find scale factor 
         mesh_diag = np.linalg.norm(mesh.bounds[1] - mesh.bounds[0])
 
-        scale_factor = reference_diag / mesh_diag
+        scale_factor = reference_diag / diags[i]
         mesh.vertices *= scale_factor
 
         print(f"{scale_factor} scale for mesh {i+1}") 
