@@ -31,20 +31,27 @@ This is a personal passion project of mine.
 - Merge nearby vertices together
 - Centres and scales meshes
 
-
 ### 2. Grid Generation & Coordinate Mapping
 
-- 3D voxel bounding grid that accounts for all the meshes
+- Generates a grid of query points for SDF computation using Torch tensors.
+- Generate dynamic bounding relative to each mesh size utilising anisotropic padding.
 
 For a grid with resolution $(N_x, N_y, N_z)$ and voxel indices $(i, j, k)$:
 - **Flattened index:** $i \times N_y N_z + j \times N_z + k$ (done via ravelling of meshgrid by NumPy)
 - **World position:** $(x_i, y_j, z_k)$ where coordinates are linearly spaced between bounds
 
-### 3. SDF Computation
+### 3a. SDF Computation (CPU)
 
 - Calculate signed distance for each grid point for pairs of the meshes.
 - Utilises typical conventions (− for interior, + for exterior)
 - Parallelised computation to reduce time complexity (will depend on user number of cores - accounted for)
+- Map vertices from voxel coordinates back to world space using grid spacing (3D -> 1D array)
+
+### 3b. SDF Computation (GPU)
+
+- Temporary wavefront (.obj) files generated from trimesh
+- PyTorch Volumetric MeshSDF utilising GPU-acceleration on CUDA device for calculating SDF. 
+- Convert SDF to voxel units via element-wise cube rooting of voxel-spacing from world space coordinates. 
 
 ### 4. Interpolation of SDF
 
@@ -52,13 +59,27 @@ Generates intermediate SDF representations by linear blending:
 
 $$\text{SDF}_{\text{morph}}(t) = (1-t) \times \text{SDF}_A + t \times \text{SDF}_B \quad t \in [0,1]$$
 
-### 5. Surface Reconstruction / Frame Generation 
+### 5. Surface Reconstruction 
+
 - Multi-core parallelised transitioning of frames. 
-- Utilise marching cubes to extract isosurface at each interpolation step (threshold: 0.0, with a spacing defined by resolution) 
-- Map vertices from voxel coordinates back to world space using grid spacing (3D -> 1D array)
-- Intermediatae mesh generation from the vertices and faces. 
-- Post-process the surface (clean, fill and smooth)
+- Utilise marching cubes to extract isosurface at each interpolation step (threshold: 0.0, with a spacing defined by resolution).
+- Affine transformation applied to each axis to recover world position.
+
+### 6. Postprocessing 
+
+- Post-process the surface (clean, fill and smooth). 
+- Utilise connectivity to ensure small blobs are removed. 
+- Subdivide iterations used to increase face count (x4 for each iteration)
+- Taubin smoothing used instead of Laplacian smoothing to decrease volume lost. 
+- Normals are counted to ensure that shading is smooth and consistent via computer_normals()
+
+### Frame Generation 
+
+- Parallelised frame generation.
+- Preview generated whilst main loading occurs using wireframe mesh.
+- Intermediate mesh generation from the vertices and faces. 
 - Account for errors by using fallback frames (i.e. the last frame generated)
+- Account for preventing duplicates by skipping last transistion frame of each transistion
   
 
 ### 6. Interactive Viewer
@@ -70,6 +91,10 @@ $$\text{SDF}_{\text{morph}}(t) = (1-t) \times \text{SDF}_A + t \times \text{SDF}
 
 - Python 3.9+
 - System packages for VTK/PyVista may be required.
+
+### GPU recommendations 
+
+- CUDA
 
 ## Setup
 
@@ -125,20 +150,22 @@ num_frames = 20      # Number of frames to generate
 ## Project Structure
 
 ```
-
-model-morpher/
-├── requirements.txt          # Python dependencies
-├── .gitignore
-├── src/
-│   ├── config.py             # Store all constants sep. by file.
-│   ├── main.py
-│   ├── mesh_tools.py         # Mesh handling functions
-│   ├── sdf_tools_gpu.py      # GPU ray tracing + GPU SDF from PyTorch3D and etc.
-│   └── viewer.py             # Interactive 3D viewer
-└── test_models/
-    ├── halfpoly_suzanne.stl  # https://www.thingiverse.com/thing:2522740
-    └── Hand_SUPERfinal.stl   # https://www.thingiverse.com/thing:31331      
-
+mesh_morpher/
+├── core/
+│   ├── __init__.py
+│   ├── device.py           # Device management - Check for CUDA
+│   ├── grid.py             # Grid generation & bounds 
+│   └── sdf.py              # SDF construction & queries 
+├── processing/
+│   ├── __init__.py
+│   ├── isoextraction.py       # Marching cubes and isoextraction
+│   └── postprocess.py      # Mesh cleaning/smoothing 
+├── morphing/
+│   ├── __init__.py
+│   └── interpolator.py     # Main morph pipeline 
+├── config.py               # Constants
+├── main.py                 # Qt application
+└── viewer.py               # Viewer
 ```
 
 
@@ -153,18 +180,20 @@ model-morpher/
 Generally aiming to produce a stable Python-only version before considering other user experience aspects such as JS front end for ease-of-use (alongside a GIF export option?) or PyVista file-adding UX.
 
 - Intended as a smaller milestone toward a larger neuroscience project and will likely be featured as a package within. 
-- If meshes are large, reduce `TARGET_FACES` or `resolution` in `main.py`. (GPU version will come soon)
+- GUI is only intended for visualisation purposes, in reality, it'll be likely exported as a downloadable GIF. 
 
 ## Development Roadmap
 
-- [ ] GPU-accelerated SDF computation (In process - however really hard to understand correct packages / dependencies for PyTorch3D and PyTorch)
+- [X] GPU-accelerated SDF computation (In process - however really hard to understand correct packages / dependencies for PyTorch3D and PyTorch)
 - [X] Batch processing capabilities (Accomplished for CPU only) 
 - [ ] Animation export (video/GIF formats)
 - [X] File insertion via GUI for high-level mesh morphing.
 - [ ] Convert into a deployable and stable package.
 - [X] Increase the number of meshes that are able to be morphed. (For however many meshes you want)
 - [X] Loading Screen
-- [ ] Textures implemented.
+- [ ] Textures implemented. 
+- [ ] Texture morphing implemented
+- [X] Preview implemented (wireframe preview generated)
 
 ## License
 
