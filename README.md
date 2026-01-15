@@ -73,7 +73,7 @@ $$\text{SDF}_{\text{morph}}(t) = (1-t) \times \text{SDF}_A + t \times \text{SDF}
 - Taubin smoothing used instead of Laplacian smoothing to decrease volume lost. 
 - Normals are counted to ensure that shading is smooth and consistent via computer_normals()
 
-### Frame Generation 
+### 7. Frame Generation 
 
 - Parallelised frame generation.
 - Preview generated whilst main loading occurs using wireframe mesh.
@@ -82,7 +82,7 @@ $$\text{SDF}_{\text{morph}}(t) = (1-t) \times \text{SDF}_A + t \times \text{SDF}
 - Account for preventing duplicates by skipping last transistion frame of each transistion
   
 
-### 6. Interactive Viewer
+### 8. Interactive Viewer
 
 - PyVista-based 3D viewer with scroll-through frame navigation
 - Mouse wheel controls morph progression between frames
