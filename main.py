@@ -15,8 +15,8 @@ from random import randint
 from brainglobe_atlasapi import BrainGlobeAtlas
 from config import PREVIEW_RES, PREVIEW_FRAMES, TARGET_FACES, RESOLUTION, FRAME_COUNT
 from mesh_tools import load_and_clean_mesh, pyvista_to_trimesh, repair_mesh, normalise_meshes
+from morphing.framer import morph_mesh_sequence_torch
 from sdf_tools_cpu import morph_mesh_sequence
-from sdf_tools_gpu import morph_mesh_sequence_torch
 from viewer import ScrollViewer
 
 

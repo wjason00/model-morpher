@@ -14,6 +14,8 @@ from config import (
     TAUBIN_PASS_BAND,
     SUBDIVIDE_ITERATIONS,
 )
+from grid import calculate_bounds
+from sdf import save_temp_trimesh
 from sdf_tools_cpu import extract_isosurface_cpu
 from pytorch3d.ops.marching_cubes import marching_cubes 
 
@@ -87,10 +89,9 @@ def _build_mesh_sdf(trimesh, device, global_bounds, mesh_index = 0, resolution =
     :return: MeshSDF object that computes exact signed distances
     """
 
+    temp_path, temp_dir = save_temp_trimesh(trimesh, mesh_index=mesh_index)
+
     try:
-        file_name = f"mesh_{mesh_index}.obj"
-        temp_path, temp_dir = _trimesh_to_temp_obj(trimesh, name=file_name)
-        
         # Load mesh into PyTorch Volumetric
         mesh = ptv.MeshObjectFactory(temp_path, device=device)
         
@@ -100,8 +101,6 @@ def _build_mesh_sdf(trimesh, device, global_bounds, mesh_index = 0, resolution =
         # - For inside points: negative distance to nearest triangle
         # - Sign determination uses ray casting (odd crossings = inside)
         sdf = ptv.MeshSDF(mesh)
-
-        print(f"    MeshSDF built on device: {device} (exact distances, no caching)")
 
     finally:
         # Clean up temporary files
@@ -170,16 +169,11 @@ def _normalize_sdf_volume(sdf_vol, voxel_spacing):
     
     # We use the geometric mean to handle anisotropic grids fairly
     # Elementwise cube root of array ensures that representative scaling to calculate voxel size
-    avg_voxel_size = float(np.cbrt(voxel_spacing[0] * voxel_spacing[1] * voxel_spacing[2]))
+    avg_voxel_size = float(
+        np.cbrt(voxel_spacing[0] * voxel_spacing[1] * voxel_spacing[2])
+        )
     
-    # Divide SDF by voxel size to convert from world-units to voxel-units allowing for scaling 
-    # of the SDF gradient.
-    # This makes the gradient approximately 1.0 at the surface (ideal for marching cubes)
-    sdf_normalized = sdf_vol / avg_voxel_size
-    
-    # Values > 1.0 make surfaces sharper (steeper gradient)
-    # Values < 1.0 make surfaces smoother (gentler gradient)
-    sdf_normalized = sdf_normalized * SDF_NORMALIZATION_SCALE
+    sdf_normalized = (sdf_vol / avg_voxel_size) * SDF_NORMALIZATION_SCALE
     
     return sdf_normalized
 
@@ -198,13 +192,11 @@ def _high_quality_mesh_postprocess(mesh):
     
    # Removal of degenerate faces and unreferenced points.
     mesh = mesh.clean(tolerance = TOLERANCE, inplace = False)
-    
     if mesh.n_points == 0:
         return None
     
     # Ensure largest connected components are kept and therefore reduces blobbing.
     mesh = mesh.connectivity(extraction_mode = 'largest')
-    
     if mesh.n_points == 0:
         return None
     
@@ -215,8 +207,6 @@ def _high_quality_mesh_postprocess(mesh):
         mesh = mesh.fill_holes(hole_size = 100000)
     except Exception:
         pass
-    
-
 
     # We skip this if the mesh is already dense (>100k faces) to avoid
     # excessive memory usage 
@@ -227,11 +217,7 @@ def _high_quality_mesh_postprocess(mesh):
             # Subdivision can fail on non-manifold meshes - continue without it
             pass
 
-    # Taubin used over laplacian to preserve the volume of the mesh
-    # Standard Laplacian smoothing shrinks the mesh over iterations because
-    # it always moves vertices toward their neighbors' centroid.
-    # This produces smooth surfaces WITHOUT the shrinkage problem that
-    # makes Laplacian-smoothed meshes look "deflated"
+    
     if TAUBIN_ITERATIONS > 0:
         try:
             mesh = mesh.smooth_taubin(
@@ -281,7 +267,6 @@ def _mesh_from_volume_torch(vol, min_bounds, spacing, device):
         verts, faces = marching_cubes(vol_batched, isolevel = 0.0)
     except Exception as e:
         # Fallback to CPU
-
         verts, faces = marching_cubes(vol_batched.cpu(), isolevel = 0.0)
     
     # marching_cubes returns a list of tensors (one per batch item), extract first batch
@@ -290,54 +275,22 @@ def _mesh_from_volume_torch(vol, min_bounds, spacing, device):
     if isinstance(faces, (list, tuple)):
         faces = faces[0]
 
-    # Early exit if marching cubes found no surface (empty tensors)
-    verts_empty = (isinstance(verts, torch.Tensor) and verts.numel() == 0) or \
-                  (isinstance(verts, np.ndarray) and verts.size == 0)
-    faces_empty = (isinstance(faces, torch.Tensor) and faces.numel() == 0) or \
-                  (isinstance(faces, np.ndarray) and faces.size == 0)
-    
+    # Replace with func
     if verts_empty or faces_empty:
         print("  No surface found at this interpolation step")
         return None
 
-    # Converting back to NumPy for PyVista (if they aren't already) then mapping to world coordinates
-    # Lots of checks cause loads of issues pop up - check later
-    if isinstance(verts, torch.Tensor):
-        if verts.is_cuda:
-            verts = verts.cpu()
-
-        verts = verts.detach().numpy()
-
-    elif not isinstance(verts, np.ndarray):
-        verts = np.array(verts)
-
-    if isinstance(faces, torch.Tensor):
-        if faces.is_cuda:
-            faces = faces.cpu()
-
-        faces = faces.detach().numpy()
-
-    elif not isinstance(faces, np.ndarray):
-        faces = np.array(faces)
+    # Convert to NumPy 
+    verts = _to_numpy(verts)
+    faces = _to_numpy(faces)
 
     if len(verts) == 0 or len(faces) == 0:
         print("  No surface found")
         return None 
     
-    # Ensure pure NumPy - handle CUDA tensors by moving to CPU first
-    if isinstance(min_bounds, torch.Tensor):
-        if min_bounds.is_cuda:
-            min_bounds = min_bounds.cpu()
-        min_bounds = min_bounds.detach().numpy()
-    else:
-        min_bounds = np.array(min_bounds)
-
-    if isinstance(spacing, torch.Tensor):
-        if spacing.is_cuda:
-            spacing = spacing.cpu()
-        spacing = spacing.detach().numpy()
-    else:
-        spacing = np.array(spacing) 
+    # Convert from grid-space to world-space
+    min_bounds = _to_numpy(min_bounds)
+    spacing = _to_numpy(spacing)
 
 
     # This is a simple affine transformation applied per-axis
@@ -350,12 +303,11 @@ def _mesh_from_volume_torch(vol, min_bounds, spacing, device):
     # PyVista expects faces in a flat array format: [n_verts, v0, v1, v2, n_verts, v0, v1, v2, ...]
     # For triangles, n_verts is always 3
     faces_pv = np.hstack([np.full((len(faces), 1), 3), faces]).ravel()
-    morph_mesh = pv.PolyData(verts, faces_pv)
+    mesh = pv.PolyData(verts, faces_pv)
 
-    morph_mesh = _high_quality_mesh_postprocess(morph_mesh)
+    mesh = _high_quality_mesh_postprocess(mesh)
 
-    return morph_mesh 
-
+    return mesh 
 
 def morph_mesh_sequence_torch(trimeshes, resolution = 64, frames_per_transition = 20, device = "cuda"):
     """
@@ -373,20 +325,8 @@ def morph_mesh_sequence_torch(trimeshes, resolution = 64, frames_per_transition 
     # Global Bounding Box - Using NumPy as it's faster than CuPy for small arrays.
     # Inclusion of isotropic padding.
 
-    raw_min_bounds = np.min([trimesh.bounds[0] for trimesh in trimeshes], axis = 0)
-    raw_max_bounds = np.max([trimesh.bounds[1] for trimesh in trimeshes], axis = 0)
+    min_bounds, max_bounds = calculate_bounds(trimeshes, PADDING_PERCENT)
 
-    # Extent times padding percentage
-    padding = np.linalg.norm((raw_max_bounds - raw_min_bounds) * PADDING_PERCENT) 
-
-    min_bounds = raw_min_bounds - padding
-    max_bounds = raw_max_bounds + padding
-
-    global_bounds = np.array([
-        [min_bounds[0], max_bounds[0]],
-        [min_bounds[1], max_bounds[1]],
-        [min_bounds[2], max_bounds[2]]
-    ])
 
     query_points, spacing = _query_points_maker(min_bounds, max_bounds, resolution, device)
 
@@ -397,43 +337,40 @@ def morph_mesh_sequence_torch(trimeshes, resolution = 64, frames_per_transition 
         """)
     
     sdfs = []
-
     for i, trimesh in enumerate(trimeshes): 
         print(f"  Building MeshSDF for mesh {i + 1}/{len(trimeshes)}...")
         
         # Build exact SDF representation (not cached - computes true distances)
-        mesh_sdf = _build_mesh_sdf(trimesh, device, global_bounds, mesh_index = i, resolution = resolution)
+        mesh_sdf = _build_mesh_sdf(trimesh, device, mesh_index = i)
         
         # Query SDF at all grid points - this computes EXACT distances, no interpolation
         sdf = _sdf_vol_from_mesh(mesh_sdf, query_points, resolution, device)
-        
-
         sdf = _normalize_sdf_volume(sdf, spacing)
 
         sdfs.append(sdf)
-
         print(f" SDF {i+1} range: [{float(sdf.min()):.3f}, {float(sdf.max()):.3f}]")
 
     # Generate morph frames
     morph_frames = []
 
+    # i = mesh index
     for i in range(len(sdfs) - 1):
         sdf_a = sdfs[i]
         sdf_b = sdfs[i + 1]
 
+        # Interpolation weights 
         transition = np.linspace(0.0, 1.0, frames_per_transition)
 
         if i < len(trimeshes) - 2:
             # Prevent going from A->B B->C then D->D on the last frame 
             transition = transition[:-1] 
 
+        # j = frame index
         for j, t in enumerate(transition):
             print(f"  Generating frame {j + 1}/{frames_per_transition} for transition {i + 1}/{len(trimeshes) - 1}...")
-
+            
             # Keep interpolation within GPU
-
             t_torch = torch.tensor(float(t), device = device, dtype = torch.float32)
-
             sdf_interp = (1 - t_torch) * sdf_a + t_torch * sdf_b
 
             mesh = _mesh_from_volume_torch(
@@ -448,6 +385,8 @@ def morph_mesh_sequence_torch(trimeshes, resolution = 64, frames_per_transition 
             elif morph_frames:
                 morph_frames.append(morph_frames[-1])  # Repeat last valid frame
                 print("repeating previous frame")
+            else:
+                print(f"no surface found: frame {j + 1} for transition {i + 1}")
 
         print(f"\n{'='*50}")
         print(f"Total frames generated: {len(morph_frames)}")

@@ -24,7 +24,7 @@ SDF_NORMALIZATION_SCALE = 0.3  # Normalizes SDF so values span roughly [-1, 1] n
 
 # Mesh Quality Post-Processing
 # Taubin smoothing alternates between positive/negative lambda to prevent shrinkage
-# Unlike Laplacian smoothing which shrinks meshes, Taubin preserves volume
+# Unlike Laplacian smoothing which shrinks meshes (moving to neighbours centroid), Taubin preserves volume
 TAUBIN_ITERATIONS = 30  # Number of Taubin smoothing passes (more = smoother)
 TAUBIN_PASS_BAND = 0.05  # Frequency cutoff - lower preserves more detail, higher smooths more
 
