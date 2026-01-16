@@ -87,6 +87,7 @@ def _is_empty_tensor(tensor):
     else:
         raise TypeError("Input must be a Torch Tensor or NumPy ndarray.")
     
+    
 def _to_numpy(data: torch.Tensor | np.ndarray) -> np.ndarray:
     """
     Convert a Torch Tensor to a NumPy ndarray if necessary.

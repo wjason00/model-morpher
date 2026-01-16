@@ -59,6 +59,38 @@ def build_mesh_sdf(trimesh, device, mesh_index = 0):
     return sdf
 
 
+def batched_sdf_query(mesh_sdfs, query_points, resolution, device, batch_size = 100000):
+    """
+    Query SDF values from a MeshSDF object in batches to manage memory usage.
+    """
+
+    query_points = torch.as_tensor(query_points, device=device, dtype=torch.float32)
+    total_points = query_points.shape[0]
+
+    all_sdfs = []
+
+    for mesh_sdf in mesh_sdfs:
+        sdf_vals = [] 
+
+        for i in range(0, total_points, batch_size): 
+            end_index = min(i + batch_size, total_points)
+            batch = query_points[i:end_index]
+
+            out = mesh_sdf(batch) 
+
+            # Accounting for (sdf, gradient) return format or just sdf
+            batch_sdf = out[0] if isinstance(out, (tuple, list)) else out
+
+            sdf_vals.append(batch_sdf.cpu())
+
+        full_sdf = torch.cat(sdf_vals, dim=0)
+        vol = full_sdf.reshape((resolution, resolution, resolution))
+        all_sdfs.append(vol.to(device))
+
+    return all_sdfs
+
+
+# Obsolte function kept for reference
 def sdf_vol_from_mesh(mesh_sdf, query_points, resolution, device):
     """
     Query SDF values from a MeshSDF object and reshape into a 3D volume.

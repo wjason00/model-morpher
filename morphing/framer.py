@@ -3,11 +3,12 @@ Main pipeline for mesh morphing
 """
 
 import torch
-import numpy as np 
+import numpy as np
+from time import time
 
 from core.device import get_device 
 from core.grid import calculate_bounds, query_points_maker
-from core.sdf import build_mesh_sdf, sdf_vol_from_mesh, normalize_sdf_volume
+from core.sdf import build_mesh_sdf, sdf_vol_from_mesh, normalize_sdf_volume, batched_sdf_query
 
 from processing.isoextraction import mesh_from_sdf
 from config import PADDING_PERCENT
@@ -40,19 +41,14 @@ def morph_mesh_sequence_torch(trimeshes, resolution = 64, frames_per_transition 
         Global bounding box: min={min_bounds}, max={max_bounds}
         """)
     
-    sdfs = []
-    for i, trimesh in enumerate(trimeshes): 
-        print(f"  Building MeshSDF for mesh {i + 1}/{len(trimeshes)}...")
-        
-        # Build exact SDF representation (not cached - computes true distances)
-        mesh_sdf = build_mesh_sdf(trimesh, device, mesh_index = i)
-        
-        # Query SDF at all grid points - this computes EXACT distances, no interpolation
-        sdf = sdf_vol_from_mesh(mesh_sdf, query_points, resolution, device)
-        sdf = normalize_sdf_volume(sdf, spacing)
+    start_time = time()
+    mesh_sdfs = [build_mesh_sdf(mesh, device, i) for i, mesh in enumerate(trimeshes)]
+    print(f"Built MeshSDFs in {time() - start_time:.2f} seconds")
+    sdfs = batched_sdf_query(
+        mesh_sdfs, query_points, resolution, device, batch_size = 100000
+        )
+    print(f"Queried SDF volumes in {time() - start_time:.2f} seconds")
 
-        sdfs.append(sdf)
-        print(f" SDF {i+1} range: [{float(sdf.min()):.3f}, {float(sdf.max()):.3f}]")
 
     # Generate morph frames
     morph_frames = []
@@ -97,3 +93,4 @@ def morph_mesh_sequence_torch(trimeshes, resolution = 64, frames_per_transition 
         print(f"{'='*50}")
 
     return morph_frames
+
