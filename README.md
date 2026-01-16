@@ -1,4 +1,4 @@
-# Model Morpher (Python-first draft)
+# Model Morpher
 
 A framework for generating smooth morphological transitions between 3D meshes using SDF interpolation and isosurface extraction via Marching Cubes formulae, before displaying in a PyVista scroller to allow for controlled morphing.
 
@@ -6,8 +6,14 @@ This is a personal passion project of mine.
 
 ---
 ## Loading Screen
-![Recording 2026-01-12 at 23 41 37](https://github.com/user-attachments/assets/409f8347-e099-4562-93c6-8f19ac6a708e)
-*Preview Mesh computation - 1.1s (delay is frame generation time)*
+<p float="left">
+  <img src="https://github.com/user-attachments/assets/409f8347-e099-4562-93c6-8f19ac6a708e" width="49%" />
+  <img src="https://github.com/user-attachments/assets/5412f395-4ff3-445c-8a12-0348171c0268" width="49%" />
+</p>
+
+*Preview Mesh computation - 1.1s (delay is frame generation time) | Scrollable splitters and hide atlas button*
+
+
 
 ## Examples
 ![Recording 2026-01-08 at 13 27 08](https://github.com/user-attachments/assets/344589aa-08c4-428c-85fd-9b129692bbfb)
