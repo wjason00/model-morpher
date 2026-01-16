@@ -30,3 +30,8 @@ TAUBIN_PASS_BAND = 0.05  # Frequency cutoff - lower preserves more detail, highe
 
 # Quadruples face count. 
 SUBDIVIDE_ITERATIONS = 1 
+
+# Available BRAINGLOBE atlases
+AVAILABLE_ATLASES = ["allen_mouse_25um", "allen_mouse_50um", "allen_mouse_100um",
+                        "mpin_mouse_50um", "mpin_mouse_100um",
+                    "cfl_mouse_25um", "cfl_mouse_50um", "cfl_mouse_100um"]
