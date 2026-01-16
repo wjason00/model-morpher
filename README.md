@@ -158,7 +158,7 @@ mesh_morpher/
 │   └── sdf.py              # SDF construction & queries 
 ├── processing/
 │   ├── __init__.py
-│   ├── isoextraction.py       # Marching cubes and isoextraction
+│   ├── isoextraction.py    # Marching cubes and isoextraction
 │   └── postprocess.py      # Mesh cleaning/smoothing 
 ├── morphing/
 │   ├── __init__.py
