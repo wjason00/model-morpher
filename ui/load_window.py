@@ -2,7 +2,7 @@
 Docstring for ui.load_window
 """
 
-from PyQt5 import QtWidgets
+from PyQt5 import QtWidgets, QtCore
 from pyvistaqt import QtInteractor
 
 from config import PREVIEW_RES, PREVIEW_FRAMES, TARGET_FACES, RESOLUTION, FRAME_COUNT
@@ -66,27 +66,56 @@ class LoadWindow(QtWidgets.QMainWindow):
         self.run_button.clicked.connect(self._on_start_morphing)
         button_layout.addWidget(self.run_button)
 
+        self.toggle_atlas_button = QtWidgets.QPushButton("Hide Atlas")
+        self.toggle_atlas_button.clicked.connect(self._toggle_atlas)
+        button_layout.addWidget(self.toggle_atlas_button)
+
         self.status_label = QtWidgets.QLabel("Status: Ready")
         self.status_label.setMinimumWidth(200)
         button_layout.addWidget(self.status_label)
         button_layout.addStretch(1)
 
         layout.addLayout(button_layout)
+
+        # Implementing a splitter for draggable content
+        splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        layout.addWidget(splitter)
         
         # Atlas Widget
         self.atlas_widget = AtlasWidget()
-        self.atlas_widget.setMinimumHeight(300)
+
         self.atlas_widget.structures_selected.connect(self._on_atlas_structure_selected)
-        layout.addWidget(self.atlas_widget)
+        splitter.addWidget(self.atlas_widget)
 
         # Preview Plotter
         self.plotter = QtInteractor(self)
-        self.plotter.setMinimumHeight(400)
-        layout.addWidget(self.plotter.interactor)
+        splitter.addWidget(self.plotter.interactor)
+
+        splitter.setSizes([350, 450])
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 2)
+
+        layout.addWidget(splitter)
 
         # Animating 
         self.loading_animation = LoadingAnimation(self.plotter)
         self.previewer = Previewer(self.plotter) 
+
+    
+    def _toggle_atlas(self):
+        """
+        Docstring for _toggle_atlas
+        
+        :param self: Description
+        """
+
+        visible_state = self.atlas_widget.isVisible()
+        self.atlas_widget.setVisible(not visible_state)
+
+        if visible_state:
+            self.toggle_atlas_button.setText("Show Atlas")
+        else:
+            self.toggle_atlas_button.setText("Hide Atlas")
 
 
     def _on_load_meshes(self):

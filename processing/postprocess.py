@@ -24,10 +24,10 @@ def postprocess_mesh(mesh: pv.PolyData) -> pv.PolyData:
     if mesh.n_points == 0:
         return None
     
-    # Ensure largest connected components are kept and therefore reduces blobbing.
+    """# Ensure largest connected components are kept and therefore reduces blobbing.
     mesh = mesh.connectivity(extraction_mode = 'largest')
     if mesh.n_points == 0:
-        return None
+        return None"""
     
     # Despite marching cubes returning triangles, edge case. 
     mesh = mesh.triangulate()
