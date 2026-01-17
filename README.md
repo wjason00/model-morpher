@@ -5,26 +5,16 @@ A framework for generating smooth morphological transitions between 3D meshes us
 This is a personal passion project of mine.
 
 ---
-## Loading Screen
-<p float="left">
-  <img src="https://github.com/user-attachments/assets/409f8347-e099-4562-93c6-8f19ac6a708e" width="49%" />
-  <img src="https://github.com/user-attachments/assets/5412f395-4ff3-445c-8a12-0348171c0268" width="49%" />
-</p>
-
-*Preview Mesh computation - 1.1s (delay is frame generation time) | Scrollable splitters and hide atlas button*
-
-
 
 ## Examples
-![Recording 2026-01-08 at 13 27 08](https://github.com/user-attachments/assets/344589aa-08c4-428c-85fd-9b129692bbfb)
-*Model Morph from brain model to hand model. Computed at resolution = 100 with a time of 6.5s and TARGET_FACES = 5000.*
 
-![Recording 2026-01-08 at 13 30 48](https://github.com/user-attachments/assets/d2f6f64e-06fb-41a5-a455-3831474cf190)
-*Model Morph from dentage gyrus (DG brainatlas code) to brain (root brainatlas code). Computed at resolution = 150 with a time of 39.2s and TARGET_FACES = 15,000.*
+### Loading Screen
+![Recording 2026-01-17 at 12 26 33](https://github.com/user-attachments/assets/f1437f0a-8eeb-40ac-bd5f-9c7359bcf720)
 
-![Recording 2026-01-08 at 19 41 29](https://github.com/user-attachments/assets/75a6cd31-2b7c-462c-b599-31075d81a48c)
-*Model Morph (dentate gyrus -> hand model -> brain -> suzanne (blender monkey) -> dentate gyrus). Computed at resolution = 150 and TARGET_FACES = 15,000* 
-*Total Time = 84.52 seconds. SDF Computation = 50.9s*
+![Recording 2026-01-17 at 12 34 52](https://github.com/user-attachments/assets/707aa3f8-a590-46b0-a379-6e6e685866cf)
+*Model Morph (dentate gyrus -> hand model -> brain -> suzanne (blender monkey) -> dentate gyrus).* 
+
+*Total Time = 11.80 seconds. SDF Computation = 0.38s, SDF extraction = 6.61s (ON Nvidia 5050 Ti)*
 
 
 ## What it does
