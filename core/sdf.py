@@ -126,8 +126,8 @@ def sdf_vol_from_mesh(mesh_sdf, query_points, resolution, device):
 
     return vol
 
-
-def normalize_sdf_volume(sdf_vol, voxel_spacing):
+# Kept for reference, replaced by normalise_sdf_batched in framer.py
+def normalise_sdf_volume(sdf_vol, voxel_spacing):
     """
     Normalize an SDF volume so values represent distances in voxel units, not world units.
     This reduces gradient steepness at the surface and therefore allows for less noisy marching cubes.
@@ -149,3 +149,28 @@ def normalize_sdf_volume(sdf_vol, voxel_spacing):
     
     return sdf_normalized
 
+
+def normalise_sdf_batched(sdf_batch, voxel_spacing):
+    """
+    Batched version of noramlise_sdf
+    Normalize a batch of SDF volumes so values represent distances in voxel units, not world units.
+    This reduces gradient steepness at the surface and therefore allows for less noisy marching cubes.
+    Doing this also blends SDFs from different scales more cleanly, matching characteristics
+    
+    :param sdf_vols: Raw SDF volume tensor (N, resolution, resolution, resolution)
+    :param voxel_spacing: Tuple of (dx, dy, dz) world-space distance between voxels
+    :return: Normalized SDF volumes where values are in voxel-distance units
+    """
+    
+    # We use the geometric mean to handle anisotropic grids fairly
+    # Elementwise cube root of array ensures that representative scaling to calculate voxel size
+    avg_voxel_size = float(
+        np.cbrt(voxel_spacing[0] * voxel_spacing[1] * voxel_spacing[2])
+        )
+    
+    if isinstance(sdf_batch, torch.Tensor):
+        return (sdf_batch / avg_voxel_size) * SDF_NORMALIZATION_SCALE
+    else:
+        stacked = torch.stack(sdf_batch)
+
+        return (stacked / avg_voxel_size) * SDF_NORMALIZATION_SCALE
