@@ -1,196 +1,151 @@
 # Model Morpher
 
-A framework for generating smooth morphological transitions between 3D meshes using SDF interpolation and isosurface extraction via Marching Cubes formulae, before displaying in a PyVista scroller to allow for controlled morphing.
+A Python desktop tool for exploring shape transitions between 3D meshes. Load a sequence of models, generate the intermediate surfaces, and scroll through the result in a PyVista viewer. Meshes can come from local files or the built-in BrainGlobe atlas browser.
 
-This is a personal passion project of mine.
+This personal project explores morphing through **signed distance fields (SDFs)**: each mesh becomes a grid of distances to its surface, the grids are blended, and Marching Cubes reconstructs the intermediate shapes. The result is a visual shape transition; it does not establish anatomical correspondence or model biological development.
 
----
+![Morphing sequence through dentate gyrus, hand, brain and Suzanne meshes](https://github.com/user-attachments/assets/707aa3f8-a590-46b0-a379-6e6e685866cf)
 
-## Examples
+*A sequence through dentate gyrus, hand, whole-brain and Suzanne meshes, returning to dentate gyrus.*
 
-### Loading Screen
-![Recording 2026-01-17 at 12 26 33](https://github.com/user-attachments/assets/f1437f0a-8eeb-40ac-bd5f-9c7359bcf720)
+## Try it
 
-![Recording 2026-01-17 at 12 34 52](https://github.com/user-attachments/assets/707aa3f8-a590-46b0-a379-6e6e685866cf)
-*Model Morph (dentate gyrus -> hand model -> brain -> suzanne (blender monkey) -> dentate gyrus).* 
+The current application targets an NVIDIA CUDA environment. The GPU pipeline is implemented; dependency compatibility and the CPU fallback remain limitations. See [requirements and setup](#requirements-and-setup) before installing.
 
-*Total Time = 11.80 seconds. SDF Computation = 0.38s, SDF extraction = 6.61s (ON Nvidia 5050 Ti)*
-
-
-## What it does
-
-### 1. Preparing Meshes
-
-- Cleans meshes (hole filling and computes normals)
-- Decimates faces to simplify mesh
-- Removes degenerate faces
-- Merge nearby vertices together
-- Centres and scales meshes
-
-### 2. Grid Generation & Coordinate Mapping
-
-- Generates a grid of query points for SDF computation using Torch tensors.
-- Generate dynamic bounding relative to each mesh size utilising anisotropic padding.
-
-For a grid with resolution $(N_x, N_y, N_z)$ and voxel indices $(i, j, k)$:
-- **Flattened index:** $i \times N_y N_z + j \times N_z + k$ (done via ravelling of meshgrid by NumPy)
-- **World position:** $(x_i, y_j, z_k)$ where coordinates are linearly spaced between bounds
-
-### 3a. SDF Computation (CPU)
-
-- Calculate signed distance for each grid point for pairs of the meshes.
-- Utilises typical conventions (− for interior, + for exterior)
-- Parallelised computation to reduce time complexity (will depend on user number of cores - accounted for)
-- Map vertices from voxel coordinates back to world space using grid spacing (3D -> 1D array)
-
-### 3b. SDF Computation (GPU)
-
-- Temporary wavefront (.obj) files generated from trimesh
-- PyTorch Volumetric MeshSDF utilising GPU-acceleration on CUDA device for calculating SDF. 
-- Convert SDF to voxel units via element-wise cube rooting of voxel-spacing from world space coordinates. 
-
-### 4. Interpolation of SDF
-
-Generates intermediate SDF representations by linear blending:
-
-$$\text{SDF}_{\text{morph}}(t) = (1-t) \times \text{SDF}_A + t \times \text{SDF}_B \quad t \in [0,1]$$
-
-### 5. Surface Reconstruction 
-
-- Multi-core parallelised transitioning of frames. 
-- Utilise marching cubes to extract isosurface at each interpolation step (threshold: 0.0, with a spacing defined by resolution).
-- Affine transformation applied to each axis to recover world position.
-
-### 6. Postprocessing 
-
-- Post-process the surface (clean, fill and smooth). 
-- Utilise connectivity to ensure small blobs are removed. 
-- Subdivide iterations used to increase face count (x4 for each iteration)
-- Taubin smoothing used instead of Laplacian smoothing to decrease volume lost. 
-- Normals are counted to ensure that shading is smooth and consistent via computer_normals()
-
-### 7. Frame Generation 
-
-- Parallelised frame generation.
-- Preview generated whilst main loading occurs using wireframe mesh.
-- Intermediate mesh generation from the vertices and faces. 
-- Account for errors by using fallback frames (i.e. the last frame generated)
-- Account for preventing duplicates by skipping last transistion frame of each transistion
-  
-
-### 8. Interactive Viewer
-
-- PyVista-based 3D viewer with scroll-through frame navigation
-- Mouse wheel controls morph progression between frames
-
-## Prerequisites
-
-- Python 3.9+
-- System packages for VTK/PyVista may be required.
-
-### GPU recommendations 
-
-- CUDA
-
-## Setup
-
-If attempting to install PyTorch3D - good idea to check out: 
-
-<https://github.com/MiroPsota/torch_packages_builder/issues/10> (helped me install)
-
-### Option 1: Conda (Recommended)
-
-```bash
-# Create environment from environment.yml
-conda env create -f environment.yml
-
-# Activate the environment
-conda activate model-morpher
-```
-
-### Option 2: pip/venv
-
-```bash
-# Windows
-python -m venv .venv
-.venv\Scripts\activate
-
-# macOS or Linux
-python -m venv .venv
-source .venv/bin/activate 
-
-pip install -r requirements.txt
-```
-
-## Running
-
-- Add meshes to `test_models/` (e.g., `hippocampus.stl`, `brain.stl`).
-- Execute:
+Once the environment is ready, run from the repository root:
 
 ```bash
 python main.py
 ```
 
-**Controls:** Scroll wheel navigates frames | Left-drag pans | Right-drag zooms | Q quits
+1. Click **Load Meshes** and select at least two models. The included [hand](test_models/Hand_SUPERfinal.stl) and [Suzanne](test_models/halfpoly_suzanne.stl) STL files provide a starting pair. Files can stay anywhere on disk; they do not need to be copied into `test_models/`.
+2. Alternatively, choose a BrainGlobe atlas, search its structures, and click **Add Selected**. The atlas panel can be hidden to give the preview more space.
+3. Click **Start Morphing**. A lower-resolution wireframe preview appears before the full sequence finishes.
+4. Explore the completed sequence in the viewer. The output is an interactive collection of mesh frames; video/GIF export is still planned.
+
+| Control | Action |
+| --- | --- |
+| Mouse wheel | Move through frames |
+| Left / Right arrow | Move one frame |
+| Down / Up arrow | Move ten frames |
+| Home / End | Jump to the first / last frame |
+| Q | Quit the viewer |
+
+## Loading and preview
+
+![Model Morpher loading window with atlas selection and wireframe preview](https://github.com/user-attachments/assets/f1437f0a-8eeb-40ac-bd5f-9c7359bcf720)
+
+*The loading window combines atlas selection, an adjustable split view and a wireframe preview.*
+
+## Requirements and setup
+
+- **Python 3.10** is specified in [environment.yml](environment.yml).
+- **A desktop display with Qt and VTK/PyVista support** is required for the GUI and 3D viewer. Additional system graphics libraries may be needed for your platform.
+- **NVIDIA GPU and a compatible CUDA/PyTorch/PyTorch3D installation** are the current target. The supplied dependency files specify PyTorch 2.9.1, CUDA 12.8 and PyTorch3D 0.7.9; compatible builds must be available for your operating system and Python version.
+- **CPU-only use needs repair.** The worker selects a CPU fallback when CUDA is unavailable, but currently passes an unsupported `device` argument to that function. The CPU module also has unresolved configuration references. Installing CPU packages alone does not make this a working CPU-only application.
+- **Network access and disk space for atlas data** may be needed: the GUI requests a BrainGlobe atlas on startup, and an uncached atlas must be downloaded.
+
+Clone the repository and enter its directory:
+
+```bash
+git clone https://github.com/wjason00/model-morpher.git
+cd model-morpher
+```
+
+The supplied environment files are setup recipes, not a portable lockfile. In particular, PyTorch3D availability varies by platform, and the pip requirements include CUDA-specific wheel versions. A default package index may not provide those builds. Match PyTorch, CUDA and PyTorch3D before running the application.
+
+### Conda
+
+```bash
+conda env create -f environment.yml
+conda activate model-morpher
+```
+
+If a pinned package is unavailable for your platform, adjust the recipe to a compatible build rather than mixing incompatible PyTorch and PyTorch3D versions.
+
+### pip / venv
+
+Create and activate an environment using Python 3.10:
+
+```powershell
+# Windows PowerShell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+```
+
+```bash
+# macOS / Linux shell
+python3.10 -m venv .venv
+source .venv/bin/activate
+```
+
+With a source for the matching CUDA wheels configured, install the requirements:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+The [PyTorch3D installation discussion](https://github.com/MiroPsota/torch_packages_builder/issues/10) helped with the original setup and may be useful when resolving build availability. It is an installation reference, rather than a guarantee that the supplied versions work on every platform.
+
+## How it works
+
+```text
+Local meshes / atlas structures
+    -> clean, repair, decimate, centre and scale
+    -> sample signed distances on a shared 3D grid
+    -> blend neighbouring SDFs
+    -> extract surfaces with Marching Cubes
+    -> clean and smooth the surfaces
+    -> preview and scroll through mesh frames
+```
+
+For each neighbouring pair of meshes, the interpolation is:
+
+$$\mathrm{SDF}(t) = (1-t)\,\mathrm{SDF}_A + t\,\mathrm{SDF}_B,\qquad t\in[0,1].$$
+
+The CUDA path uses PyTorch Volumetric's `MeshSDF` for distance queries and PyTorch3D for batched Marching Cubes. Mesh preparation and postprocessing use PyVista and Trimesh. A Qt worker runs the morphing pipeline separately from the loading interface.
 
 ## Configuration
 
-Parameters in `config.py`:
+Edit [config.py](config.py) before launching. Current defaults include:
 
-```python
-TARGET_FACES = 5000  # Target faces after decimation (lower means more aggressive removal of faces)
-resolution = 64      # SDF meshgrid resolution (R³)
-num_frames = 20      # Number of frames to generate
-```
+| Setting | Default | Purpose |
+| --- | --- | --- |
+| `PREVIEW_RES` | `50` | Grid resolution for the preview |
+| `PREVIEW_FRAMES` | `10` | Preview frames per transition |
+| `RESOLUTION` | `128` | Grid resolution for the full sequence |
+| `FRAME_COUNT` | `30` | Frames per transition in the full sequence |
+| `TARGET_FACES` | `15000` | Target face count when decimating input meshes |
+| `SDF_QUERY_BATCH_SIZE` | `200000` | Points queried per SDF batch |
+| `FRAME_BATCH_SIZE` | `5` | Surface extraction batch size |
 
-## Project Structure
+Grid storage grows cubically with resolution. Frame count, mesh count and intermediate SDF tensors also affect memory use; batching does not remove that cost. Reduce resolution and frame count first when exploring a new model pair. No minimum RAM or VRAM specification has been established.
 
-```
-mesh_morpher/
-├── core/
-│   ├── __init__.py
-│   ├── device.py           # Device management - Check for CUDA
-│   ├── grid.py             # Grid generation & bounds 
-│   └── sdf.py              # SDF construction & queries 
-├── processing/
-│   ├── __init__.py
-│   ├── isoextraction.py    # Marching cubes and isoextraction
-│   └── postprocess.py      # Mesh cleaning/smoothing 
-├── morphing/
-│   ├── __init__.py
-│   └── interpolator.py     # Main morph pipeline 
-├── config.py               # Constants
-├── main.py                 # Qt application
-└── viewer.py               # Viewer
-```
+## Source guide
 
+| File / directory | Responsibility |
+| --- | --- |
+| [main.py](main.py) | Qt application entry point |
+| [ui/](ui/) | Mesh loading, atlas selection, loading animation and preview |
+| [workers/morph_worker.py](workers/morph_worker.py) | Preprocessing and backend selection |
+| [morphing/framer.py](morphing/framer.py) | CUDA morphing sequence and SDF blending |
+| [core/](core/) | Device selection, shared grid and SDF queries |
+| [processing/](processing/) | Surface extraction and postprocessing |
+| [sdf_tools_cpu.py](sdf_tools_cpu.py) | CPU implementation requiring repair |
+| [viewer.py](viewer.py) | Scrollable PyVista viewer |
+| [services/atlas.py](services/atlas.py) | BrainGlobe atlas lookup and mesh paths |
 
-## Limitations
+## Limitations and next steps
 
-- Repairing meshes is limited to simple topological defects (i.e. simple holes) and therefore there will still be some weird artifacts. 
-- Memory scales (and therefore the time taken) cubically with grid resolution
-- Computational complexity (and the number of mistakes unfortunately) dependent on mesh density and SDF sampling rate.
+Mesh repair handles only some defects. Open surfaces, inconsistent normals and coarse sampling can produce holes or other artefacts, and smoothing can remove detail. Inputs are centred and scaled to comparable bounding-box sizes, so original physical scale and placement are not preserved.
 
-## Notes for the timeline
+Implemented features include multiple-mesh sequences, GUI file selection, BrainGlobe atlas browsing, the loading animation, wireframe previews and batched CUDA processing. The next steps are:
 
-Generally aiming to produce a stable Python-only version before considering other user experience aspects such as JS front end for ease-of-use (alongside a GIF export option?) or PyVista file-adding UX.
-
-- Intended as a smaller milestone toward a larger neuroscience project and will likely be featured as a package within. 
-- GUI is only intended for visualisation purposes, in reality, it'll be likely exported as a downloadable GIF. 
-
-## Development Roadmap
-
-- [X] GPU-accelerated SDF computation (In process - however really hard to understand correct packages / dependencies for PyTorch3D and PyTorch)
-- [X] Batch processing capabilities (Accomplished for CPU only) 
-- [ ] Animation export (video/GIF formats)
-- [X] File insertion via GUI for high-level mesh morphing.
-- [ ] Convert into a deployable and stable package.
-- [X] Increase the number of meshes that are able to be morphed. (For however many meshes you want)
-- [X] Loading Screen
-- [ ] Textures implemented. 
-- [ ] Texture morphing implemented
-- [X] Preview implemented (wireframe preview generated)
+- Repair and verify the CPU fallback.
+- Make installation reproducible across supported platforms and package the application.
+- Add video/GIF export.
+- Explore texture support and texture morphing.
 
 ## License
 
-MIT License
+The project is labelled MIT in its existing documentation. A standalone licence file is not yet included.
